@@ -1,0 +1,33 @@
+# 添加新规则时，ah 用最近一轮的末项，ratings 用最近的复习评分。
+# 可选 rh 是最近一组的完整评分串，直接复制核对报告里的值。
+# 带 rh 的规则优先匹配。省略 rh 时按 ah + ratings 匹配。
+# ah / rh 请加引号。wrong_count 只有明确能解释时才填写，可省略或写 null。
+# 没有匹配规则或标熟条件时，按基础顽固词归为「复习不会」，默认记错 1 次。
+# 如需另存核对报告，可在 config.yaml 开启 write_unknown_codes_report。
+manual_mastered_max_duration: 90
+code_rules:
+  - {ah: '0', ratings: ['A'], category: mastered, recognition: '本轮直接认识', wrong_count: 0}
+  - {ah: '110', ratings: ['B'], category: fuzzy, recognition: '本轮点过模糊', wrong_count: 0}
+  - {ah: '210', ratings: ['D', 'E', 'F'], category: hard, recognition: '本轮点过不认识', wrong_count: 1}
+  - {ah: '410', ratings: ['D', 'E', 'F'], category: hard, recognition: '本轮点过不认识', wrong_count: 2}
+  - {ah: '610', ratings: ['D', 'E', 'F'], category: hard, recognition: '本轮点过不认识', wrong_count: 3}
+  - {ah: '810', ratings: ['D', 'E', 'F'], category: hard, recognition: '本轮点过不认识', wrong_count: 4}
+
+  # 用户核对了 11 月 20 日和 21 日的这三组编码，确认相关词答错过。
+  # 只匹配已核对的完整组合，错了几次留空。
+  - {ah: '111', rh: '1CCC', ratings: ['C'], category: hard, recognition: '答错过（用户确认）'}
+  - {ah: '010', rh: '1AADAABAD', ratings: ['D'], category: hard, recognition: '答错过（用户确认）'}
+  - {ah: '310', rh: '2EADBD', ratings: ['D'], category: hard, recognition: '答错过（用户确认）'}
+
+  # 初学完成时，App 把本轮答错次数写到 ah 和 rh（9 为封顶值）。
+  # 只匹配完整 rh 为单个数字，保留带字母的复习编码规则。
+  - {ah: '0', rh: '0', ratings: ['0'], category: mastered, recognition: '初学完成，未答错', wrong_count: 0}
+  - {ah: '1', rh: '1', ratings: ['1'], category: hard, recognition: '初学时答错', wrong_count: 1}
+  - {ah: '2', rh: '2', ratings: ['2'], category: hard, recognition: '初学时答错', wrong_count: 2}
+  - {ah: '3', rh: '3', ratings: ['3'], category: hard, recognition: '初学时答错', wrong_count: 3}
+  - {ah: '4', rh: '4', ratings: ['4'], category: hard, recognition: '初学时答错', wrong_count: 4}
+  - {ah: '5', rh: '5', ratings: ['5'], category: hard, recognition: '初学时答错', wrong_count: 5}
+  - {ah: '6', rh: '6', ratings: ['6'], category: hard, recognition: '初学时答错', wrong_count: 6}
+  - {ah: '7', rh: '7', ratings: ['7'], category: hard, recognition: '初学时答错', wrong_count: 7}
+  - {ah: '8', rh: '8', ratings: ['8'], category: hard, recognition: '初学时答错', wrong_count: 8}
+  - {ah: '9', rh: '9', ratings: ['9'], category: hard, recognition: '初学时至少答错 9 次', wrong_count: 9}

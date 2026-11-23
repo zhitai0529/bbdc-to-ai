@@ -1,0 +1,13 @@
+{
+  "_notice": "合成数据，仅测试本项目，不代表不背单词真实接口。",
+  "data": {
+    "words": [
+      {"spelling": "obstinate", "meaning": "顽固的", "recognition": "不认识", "error_count": 3, "stage": 1, "learned_at": "2026-11-12T09:00:00+08:00"},
+      {"spelling": "ambiguous", "meaning": "模糊的；有歧义的", "recognition": "模糊", "error_count": 1, "stage": 2, "learned_at": "2026-11-12T09:01:00+08:00"},
+      {"spelling": "apple", "meaning": "苹果", "recognition": "认识", "error_count": 0, "stage": 5, "learned_at": "2026-11-12T09:02:00+08:00"},
+      {"spelling": "opaque", "meaning": "不透明的", "stage": 0, "learned_at": "2026-11-12T09:03:00+08:00"},
+      {"spelling": "yesterday", "recognition": "不认识", "learned_at": "2026-11-11"},
+      {"spelling": "undated", "recognition": "不认识"}
+    ]
+  }
+}

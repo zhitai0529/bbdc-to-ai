@@ -1,0 +1,8 @@
+mitmproxy>=10.4,<11; python_version < "3.12"
+mitmproxy>=11,<13; python_version >= "3.12"
+PyYAML>=6.0,<7
+rich>=13.9,<15
+tzdata>=2024.1
+filelock>=3.16,<4
+cryptography>=43,<45
+pyelftools>=0.31,<1

@@ -1,0 +1,47 @@
+# 已适配 Android 5.11.8。源码版可用 auto 边采集边生成，sniffer 仅备份。
+mode: auto
+listen_host: 127.0.0.1
+listen_port: 8888
+target_domains: [bbdc.cn, beingfine.cn]
+timezone: Asia/Shanghai
+raw_dump_dir: ./raw_dumps
+state_dir: ./.bbdc_state
+# 可改成 Obsidian 的绝对路径，例如 'D:/Obsidian/英语复习'
+output_dir: ./output
+max_response_bytes: 20971520
+
+# 按学习日（含当天）统计有 fuzzy / hard 记录的天数，达到阈值时提级当天的 fuzzy。
+escalation_window_days: 7
+fuzzy_escalation_threshold: 2
+# Android 的 ah/rh 分类映射放在同目录的 rules.yaml。
+# 改为 true 可另存未知编码核对报告；这些词始终会写入每日复习文件。
+write_unknown_codes_report: false
+
+parser:
+  # 以下通用映射只用于其它 JSON 格式；5.11.8 的 rh/ah 由专用适配器解释。
+  # 留空时搜索嵌套 JSON 中的词条；有样本后建议填写 data.words 等明确路径。
+  record_paths: []
+  fields:
+    spelling: [spelling, word, word.spelling, word.word, content.spelling, headword]
+    meaning: [meaning, definition, translation, chinese, word.meaning]
+    recognition: [recognition, familiarity_label, knowledge_status]
+    proficiency: [proficiency, familiarity, stage, level]
+    errors: [error_count, wrong_count, mistakes]
+    learned_at: [learned_at, studied_at, reviewed_at, last_learned_at, learn_time, review_time]
+  # 只有确认为“学习日期”的响应级字段才能填在这里；不可填服务器当前时间。
+  response_date_paths: []
+  # 不把无日期词条假定为今日所学。手工确认某接口只有今日数据后才开启。
+  include_undated: false
+  recognition_values:
+    hard: ['不认识', 'unknown', 'unrecognized', 'unfamiliar']
+    fuzzy: ['模糊', 'fuzzy', 'uncertain']
+    mastered: ['认识', 'known', 'recognized', 'mastered']
+  # 未经真实样本确认，不给 0/1/2 等按钮编码赋予含义。
+  numeric_proficiency_enabled: false
+  higher_is_better: true
+  hard_threshold: 1
+  mastered_threshold: 4
+  # 确认是需要使用的错误计数（而非其他统计）后再开启。
+  error_counts_enabled: false
+  hard_error_threshold: 2
+  fuzzy_error_threshold: 1
