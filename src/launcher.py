@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 import subprocess
 import sys
+import sysconfig
 import socket
 import time
 
@@ -22,7 +23,7 @@ def main() -> int:
     session = None
     try:
         config = load_config(args.config)
-        mitmdump = Path(sys.executable).parent / ('mitmdump.exe' if sys.platform == 'win32' else 'mitmdump')
+        mitmdump = Path(sysconfig.get_path('scripts')) / ('mitmdump.exe' if sys.platform == 'win32' else 'mitmdump')
         if not mitmdump.is_file():
             raise FileNotFoundError('当前虚拟环境未安装 mitmdump，请先运行 setup.bat')
         console.print(f'监听 {config.listen_host}:{config.listen_port}，模式 {config.mode}', style='cyan')
