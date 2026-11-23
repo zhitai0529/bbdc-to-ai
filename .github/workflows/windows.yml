@@ -36,7 +36,7 @@ jobs:
         run: |
           ./packaging/build_windows.ps1 -Python python
           Rename-Item dist/bbdc-to-ai.exe bbdc-to-ai-windows-x64.exe
-          python -m tests.smoke_windows dist/bbdc-to-ai-windows-x64.exe
+          python -m tests.smoke_windows dist/bbdc-to-ai-windows-x64.exe --inspect
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $binary = Get-Item dist/bbdc-to-ai-windows-x64.exe
           $digest = (Get-FileHash -LiteralPath $binary.FullName -Algorithm SHA256).Hash.ToLowerInvariant()

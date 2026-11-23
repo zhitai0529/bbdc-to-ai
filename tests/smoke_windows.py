@@ -13,10 +13,31 @@ from src.config import PROJECT_ROOT, load_config
 from src.pipeline import process_payload
 
 
+def inspect_archive(executable: Path) -> None:
+    from PyInstaller.archive.readers import CArchiveReader
+
+    archive = CArchiveReader(str(executable))
+    required = {'config.example.yaml', 'rules.yaml', 'THIRD-PARTY-NOTICES.txt'}
+    if missing := required.difference(archive.toc):
+        raise RuntimeError(f'Missing packaged resources: {sorted(missing)}')
+    for name in archive.toc:
+        entry = name.lower().replace('\\', '/')
+        if (entry in {'config.yaml', 'protocol.json'} or entry.endswith(('.apk', '.db', '.mitm', '.pem', '.p12'))
+                or {'raw_dumps', '.bbdc_state', '.local_setup', 'output'}.intersection(entry.split('/'))):
+            raise RuntimeError(f'Unexpected data file in packaged application: {name}')
+    with (PROJECT_ROOT / 'config.example.yaml').open('rb') as template:
+        if archive.extract('config.example.yaml') != template.read():
+            raise RuntimeError('The bundled configuration must match the public template.')
+    print('Standalone EXE contents verified.')
+
+
 def main() -> None:
     executable = Path(sys.argv[1]).resolve(strict=True)
+    if '--inspect' in sys.argv[2:]:
+        inspect_archive(executable)
+        return
     day = date(2026, 11, 23)
-    with TemporaryDirectory(prefix='bbdc-release-test-') as temporary:
+    with TemporaryDirectory(prefix='bbdc-release-test-', ignore_cleanup_errors=True) as temporary:
         area = Path(temporary).resolve()
         profile = area / '独立配置'
         profile.mkdir()
