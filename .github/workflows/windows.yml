@@ -1,0 +1,66 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+          cache: pip
+      - name: Install project and build dependencies
+        run: python -m pip install -r requirements.txt -r requirements-build.txt
+      - name: Run tests
+        shell: pwsh
+        run: |
+          Copy-Item config.example.yaml config.yaml
+          python -m unittest discover -s tests -q
+      - name: Build executable
+        shell: pwsh
+        run: |
+          ./packaging/build_windows.ps1 -Python python
+          Rename-Item dist/bbdc-to-ai.exe bbdc-to-ai-windows-x64.exe
+          python -m tests.smoke_windows dist/bbdc-to-ai-windows-x64.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $binary = Get-Item dist/bbdc-to-ai-windows-x64.exe
+          $digest = (Get-FileHash -LiteralPath $binary.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  $($binary.Name)" | Set-Content -LiteralPath dist/SHA256SUMS.txt -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bbdc-to-ai-windows-x64
+          path: |
+            dist/bbdc-to-ai-windows-x64.exe
+            dist/SHA256SUMS.txt
+            dist/THIRD-PARTY-NOTICES.txt
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: bbdc-to-ai-windows-x64
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" bbdc-to-ai-windows-x64.exe SHA256SUMS.txt THIRD-PARTY-NOTICES.txt \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
+            --title "不背单词复习助手 $GITHUB_REF_NAME" \
+            --notes "下载 Windows x64 EXE 后双击打开。运行条件和同步方式见项目 README，版本变更见 CHANGELOG.md。"
