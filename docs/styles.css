@@ -629,6 +629,65 @@ code {
   border: 0;
 }
 
+.band-side.case-side { display: block; }
+.case-side .side-note { max-width: none; margin-top: 12px; }
+
+.case-steps {
+  margin-block: 20px 24px;
+  padding-inline-start: 1.35em;
+  color: var(--ink-2);
+  font-size: .875rem;
+}
+
+.case-steps li + li { margin-top: 4px; }
+.case-steps li::marker { color: var(--blue); }
+
+.case-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.case-source,
+.case-caption {
+  font-size: .875rem;
+  color: var(--ink-2);
+}
+
+.case-output {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-block: 16px 12px;
+}
+
+.case-output h3 { margin-bottom: 10px; }
+.case-output p + p { margin-top: 6px; }
+
+.case-word,
+.case-sentence {
+  font-family: var(--font-word);
+  font-size: clamp(1.1rem, 1rem + .55vw, 1.45rem);
+}
+
+.case-sentence strong { color: var(--blue); }
+.case-hook { font-weight: 600; }
+
+.case-tree {
+  margin-block: 16px 10px;
+  padding: 12px 16px;
+  border-inline-start: 2px solid var(--blue);
+  background: var(--blue-wash);
+  font-size: .875rem;
+  overflow-wrap: anywhere;
+}
+
+.case-tree ul { margin: 5px 0 0; padding-inline-start: 1.3em; }
+.case-tree li + li { margin-top: 5px; }
+
 /* 四步流水线：横向排布，数字坐在分隔线上 */
 .pipeline {
   position: relative;
@@ -947,9 +1006,10 @@ code {
 }
 
 /* ---------- responsive ---------- */
-section[id] { scroll-margin-top: 84px; }
+section[id], #sheet-title { scroll-margin-top: 84px; }
 
 @media (max-width: 1024px) {
+  .nav a[href="#features"] { display: none; }
   .hero-body { grid-template-columns: minmax(0, 1fr); }
   .band-inner { grid-template-columns: minmax(0, 1fr); }
   .band-side { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 24px; }

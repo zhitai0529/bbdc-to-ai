@@ -11,6 +11,7 @@
 [访问项目主页](https://zhitai0529.github.io/bbdc-to-ai/) · [查看全部版本](https://github.com/zhitai0529/bbdc-to-ai/releases)
 
 项目主页的下载按钮会打开 GitHub 最新发布页。进入 Assets（附件）即可选择 Windows x64 EXE。
+主页也提供 [DeepSeek 实操案例](https://zhitai0529.github.io/bbdc-to-ai/#case-study)，展示如何把导出的复习词表用到记忆钩子和长难句拆解中。
 
 ## 下载 Windows 版
 
