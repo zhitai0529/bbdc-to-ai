@@ -263,7 +263,7 @@ code {
   flex: none;
 }
 
-.brand-version {
+.brand-platform {
   font-family: var(--font-sans);
   font-size: .75rem;
   font-weight: 500;
@@ -497,22 +497,14 @@ code {
   border-bottom: 1px solid var(--line);
 }
 
-.headword { min-width: 0; }
-
 .word {
   display: block;
+  min-width: 0;
   font-family: var(--font-word);
   font-size: 1.25rem;
   line-height: 1.35;
   letter-spacing: .005em;
   overflow-wrap: break-word;
-}
-
-.ipa {
-  display: block;
-  font-family: var(--font-word);
-  font-size: .75rem;
-  color: var(--ink-3);
 }
 
 .meaning {
@@ -1007,18 +999,18 @@ section[id] { scroll-margin-top: 84px; }
 }
 
 @media (max-width: 520px) {
-  .brand-version { display: none; }
+  .brand-platform { display: none; }
   .sheet-counts dd { font-size: 1.15rem; }
   .sheet-counts dt { font-size: .625rem; }
   .sheet-words li {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      "headword tier"
+      "word tier"
       "meaning wrong";
     gap: 2px 10px;
     padding: 12px 0;
   }
-  .headword { grid-area: headword; }
+  .word { grid-area: word; }
   .tier { grid-area: tier; justify-self: end; }
   .meaning { grid-area: meaning; }
   .wrong { grid-area: wrong; justify-self: end; text-align: right; }

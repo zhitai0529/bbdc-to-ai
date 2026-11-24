@@ -10,6 +10,8 @@
 <meta property="og:title" content="不背单词复习助手 bbdc-to-ai">
 <meta property="og:description" content="把「不背单词」的学习记录变成可追踪、可发给 AI 的本地复习清单。Windows x64 单文件，内置 Python，本机离线处理。">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://zhitai0529.github.io/bbdc-to-ai/">
+<link rel="canonical" href="https://zhitai0529.github.io/bbdc-to-ai/">
 <link rel="icon" href="assets/favicon-64.png" sizes="64x64">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <script>
@@ -18,10 +20,11 @@
   var root = document.documentElement;
   var stored = null;
   try { stored = localStorage.getItem("bbdc-to-ai.home.appearance"); } catch (e) {}
+  var modes = ["light", "dark", "system"];
   var asked = new URLSearchParams(location.search).get("appearance");
-  var preference = ["light", "dark", "system"].indexOf(asked) >= 0
+  var preference = modes.indexOf(asked) >= 0
     ? asked
-    : stored || "system";
+    : modes.indexOf(stored) >= 0 ? stored : "system";
   var dark = preference === "dark" ||
     (preference === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   root.dataset.preference = preference;
@@ -42,7 +45,7 @@
     <a class="brand" href="#top">
       <img class="brand-mark" src="assets/app-icon.png" alt="" width="26" height="26" decoding="async">
       <span class="brand-name">不背单词复习助手</span>
-      <span class="brand-version">v1.4.1</span>
+      <span class="brand-platform">Windows x64</span>
     </a>
 
     <nav class="nav" aria-label="页面">
@@ -73,7 +76,7 @@
 
     <div class="hero-body">
       <div class="hero-copy">
-        <p class="lede">从本机 MuMu 模拟器提取你自己的词库，按掌握度分成顽固、模糊与已剔除，逐日追踪同一天到底错了几次。离线导出 Markdown；或者在复习预览里改好 Prompt，复制给你惯用的 AI。</p>
+        <p class="lede">从本机 MuMu 模拟器读取学习记录，按最近一轮的表现筛出顽固词和模糊词，并追踪哪些词在多天反复出错。你可以离线导出 Markdown，也可以编辑复习 Prompt，再复制给常用的 AI。</p>
 
         <ul class="facts">
           <li>本机离线处理</li>
@@ -82,7 +85,7 @@
         </ul>
 
         <div class="actions">
-          <a class="btn btn-primary cta-desktop" href="https://github.com/zhitai0529/bbdc-to-ai/releases/latest/download/bbdc-to-ai-windows-x64.exe">下载 Windows x64 版（v1.4.1）</a>
+          <a class="btn btn-primary cta-desktop" href="https://github.com/zhitai0529/bbdc-to-ai/releases/latest/download/bbdc-to-ai-windows-x64.exe">下载 Windows x64 最新版</a>
           <button class="btn btn-primary cta-mobile" type="button" data-copy-link>复制本页链接，到电脑上打开</button>
           <a class="text-link" href="https://github.com/zhitai0529/bbdc-to-ai#readme" target="_blank" rel="noopener">查看源码与文档</a>
         </div>
@@ -108,19 +111,13 @@
 
         <ul class="sheet-words">
           <li>
-            <span class="headword">
-              <span class="word">obstinate</span>
-              <span class="ipa">/ˈɒbstɪnət/</span>
-            </span>
+            <span class="word">obstinate</span>
             <span class="meaning">顽固的</span>
             <span class="wrong">错 3 次</span>
             <span class="tier tier-hard">顽固</span>
           </li>
           <li>
-            <span class="headword">
-              <span class="word">ambiguous</span>
-              <span class="ipa">/æmˈbɪɡjuəs/</span>
-            </span>
+            <span class="word">ambiguous</span>
             <span class="meaning">模糊的；有歧义的</span>
             <span class="wrong">错 1 次</span>
             <span class="tier tier-fuzzy">模糊</span>
@@ -134,7 +131,7 @@
 
         <div class="sheet-foot">
           <button class="btn btn-copy" type="button" data-copy-prompt>复制全部内容</button>
-          <p class="sheet-note">内容取自仓库里的 <a href="https://github.com/zhitai0529/bbdc-to-ai/blob/main/examples/synthetic_review.md" target="_blank" rel="noopener">合成示例</a>，不是你的学习记录。</p>
+          <p class="sheet-note">取自仓库里的 <a href="https://github.com/zhitai0529/bbdc-to-ai/blob/main/examples/synthetic_review.md" target="_blank" rel="noopener">合成词表</a>。</p>
         </div>
       </figure>
     </div>
@@ -143,8 +140,8 @@
   <section class="band" id="workflow" aria-labelledby="workflow-title">
     <div class="wrap">
       <div class="band-head">
-        <h2 id="workflow-title">四步衔接词库与 AI，数据一直留在这台电脑上</h2>
-        <p class="side-note">同步与导出由本机进程完成；项目不设在线账户，也不上传学习记录。</p>
+        <h2 id="workflow-title">从学习记录到复习 Prompt</h2>
+        <p class="side-note">助手在本机读取、分类和导出。是否把复习词表发给 AI，由你决定。</p>
       </div>
 
       <ol class="pipeline">
@@ -154,7 +151,7 @@
         </li>
         <li>
           <h3>分类并跨天追踪</h3>
-          <p>自动提取待复习词，按本轮表现分级归类。同一个词在多天里反复模糊或答错，会被提进顽固词表，而不是每天重新猜。</p>
+          <p>按最近一轮表现分类。若某个词本轮仍模糊，且最近 7 天内有至少 2 个学习日被标为模糊或顽固，默认将它提级为顽固词。</p>
         </li>
         <li>
           <h3>离线导出，或改好 Prompt</h3>
@@ -181,7 +178,7 @@
           <ul class="checklist">
             <li>正在用「不背单词」积累词库，想跳出单一的刷词模式，用 AI 做语境复习。</li>
             <li>在意数据可控：词库提取、Markdown 导出与 Prompt 组装都希望在本机完成。</li>
-            <li>愿意为同步做一次性配置（Root、ADB、版本核对），换来之后完全离线的日常使用。</li>
+            <li>可以完成一次 MuMu 配置，包括 Root、ADB 和版本核对。有本地记录后，预览与导出可离线进行。</li>
           </ul>
         </div>
 
@@ -245,7 +242,7 @@
         <ol class="steps steps-compact">
           <li>
             <h3>在电脑端备好模拟器</h3>
-            <p>装好 MuMu Android 15 与「不背单词」5.11.8 x86，在 App 里登录自己的词书。细节见<a href="https://github.com/zhitai0529/bbdc-to-ai#%E9%A6%96%E6%AC%A1%E9%85%8D%E7%BD%AE-mumu" target="_blank" rel="noopener">配置指南</a>。</p>
+            <p>装好 MuMu Android 15 与「不背单词」5.11.8 x86，在 App 里登录自己的账号。细节见<a href="https://github.com/zhitai0529/bbdc-to-ai#%E9%A6%96%E6%AC%A1%E9%85%8D%E7%BD%AE-mumu" target="_blank" rel="noopener">配置指南</a>。</p>
           </li>
           <li>
             <h3>运行 EXE 并同步</h3>
@@ -261,7 +258,7 @@
       <div class="closing">
         <p class="closing-line">今天该复习的词，交给 AI 帮你串起来。</p>
         <div class="closing-actions">
-          <a class="btn btn-primary" href="https://github.com/zhitai0529/bbdc-to-ai/releases/latest/download/bbdc-to-ai-windows-x64.exe">下载 Windows x64 版（v1.4.1）</a>
+          <a class="btn btn-primary" href="https://github.com/zhitai0529/bbdc-to-ai/releases/latest/download/bbdc-to-ai-windows-x64.exe">下载 Windows x64 最新版</a>
           <a class="btn btn-quiet" href="https://github.com/zhitai0529/bbdc-to-ai/releases" target="_blank" rel="noopener">全部版本与更新日志</a>
         </div>
       </div>
@@ -330,7 +327,6 @@
 | --- | --- | --- | --- | --- |
 
 要求：
-
 1. 每个词都结合【词根拆解 + 熟词联想 + 谐音画面】，把词形、发音和核心义连成一个具体、简短的画面。
 2. “3 秒提取钩子”写成一眼能触发的一句话，目标是迅速唤回词义。
 3. 严格区分真实词根词源与人为记忆拆分；不能合理拆词根时明确写“无可靠拆解”，不得编造词源。谐音只作辅助，并提醒以标准发音为准。

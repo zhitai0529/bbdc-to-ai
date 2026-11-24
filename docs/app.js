@@ -10,14 +10,6 @@
   var systemDark = window.matchMedia("(prefers-color-scheme: dark)");
   var metaTheme = document.querySelector('meta[name="theme-color"]');
 
-  function stored() {
-    try {
-      return window.localStorage.getItem(STORAGE_KEY);
-    } catch (error) {
-      return null;
-    }
-  }
-
   function remember(preference) {
     try {
       window.localStorage.setItem(STORAGE_KEY, preference);
@@ -83,6 +75,7 @@
   }
 
   function fallbackCopy(text) {
+    var previousFocus = document.activeElement;
     var area = document.createElement("textarea");
     area.value = text;
     area.setAttribute("readonly", "");
@@ -96,8 +89,10 @@
       copied = document.execCommand("copy");
     } catch (error) {
       copied = false;
+    } finally {
+      area.remove();
+      if (previousFocus) previousFocus.focus({ preventScroll: true });
     }
-    document.body.removeChild(area);
     return copied;
   }
 
@@ -113,14 +108,19 @@
     else failed();
   }
 
+  var copyFeedback = new WeakMap();
   function flash(button, label) {
-    var original = button.textContent;
+    var feedback = copyFeedback.get(button);
+    var original = feedback ? feedback.original : button.textContent;
+    if (feedback) window.clearTimeout(feedback.timer);
     button.textContent = label;
     button.dataset.copied = "true";
-    window.setTimeout(function () {
+    var timer = window.setTimeout(function () {
       button.textContent = original;
-      button.dataset.copied = "false";
+      delete button.dataset.copied;
+      copyFeedback.delete(button);
     }, 2400);
+    copyFeedback.set(button, { original: original, timer: timer });
   }
 
   var promptButton = document.querySelector("[data-copy-prompt]");
@@ -149,9 +149,10 @@
     document.querySelectorAll("[data-copy-link]")
   );
 
+  var canonical = document.querySelector('link[rel="canonical"]');
   linkButtons.forEach(function (button) {
     button.addEventListener("click", function () {
-      var url = window.location.href;
+      var url = canonical ? canonical.href : window.location.href;
       copy(
         url,
         function () {

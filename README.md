@@ -8,6 +8,8 @@
 
 学习记录在本机处理。你决定是否把生成的提示词复制给 AI。想先看看导出内容，可以打开这份 [合成示例](examples/synthetic_review.md)。
 
+[访问项目主页](https://zhitai0529.github.io/bbdc-to-ai/) · [查看全部版本](https://github.com/zhitai0529/bbdc-to-ai/releases)
+
 ## 下载 Windows 版
 
 下载 `bbdc-to-ai-windows-x64.exe` 后双击运行。适用于 Windows x64，EXE 内置 Python，无需另行安装。 [下载最新版 EXE](https://github.com/zhitai0529/bbdc-to-ai/releases/latest/download/bbdc-to-ai-windows-x64.exe)
