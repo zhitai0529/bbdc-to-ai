@@ -178,7 +178,7 @@ class ReviewWindow(ReviewView):
         self.job.request_cancel()
 
 
-def main(argv: Sequence[str] | None = None) -> None:
+def main(argv: Sequence[str] | None = None, *, startup_warning: str | None = None) -> None:
     parser = argparse.ArgumentParser(description='不背单词中文复习助手')
     parser.add_argument('--export', action='store_true', help='打开后使用本机记录导出今日复习')
     parser.add_argument('--open-latest', action='store_true', help='打开本地最近的复习文件（默认）')
@@ -195,6 +195,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         root.after(300, window.export)
     else:
         root.after_idle(window.open_latest)
+    if startup_warning:
+        root.after_idle(window.status.set, startup_warning)
     root.mainloop()
 
 

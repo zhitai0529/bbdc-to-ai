@@ -3,11 +3,14 @@ from __future__ import annotations
 
 from contextlib import redirect_stderr, redirect_stdout
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import traceback
 
-from src.runtime import prepare_external_programs
+from src.runtime import is_packaged, prepare_external_programs
+from src.version import VERSION
 
 
 def run_worker(module: str, filename: Path, options: list[str]) -> int:
@@ -48,7 +51,24 @@ def main() -> int:
     from src.desktop import main as desktop
 
     prepare_external_programs()
-    desktop(args)
+    startup_warning = None
+    if is_packaged() and sys.platform == 'win32':
+        from filelock import Timeout
+
+        from src.desktop_install import maintain_installation
+
+        try:
+            current = Path(sys.executable)
+            installed = maintain_installation(current)
+            if installed.parent.name != VERSION:
+                # A previous download must not replace the newer installation.
+                env = {**os.environ, 'PYINSTALLER_RESET_ENVIRONMENT': '1'}
+                subprocess.Popen([str(installed), *args], cwd=installed.parent, env=env,
+                                 creationflags=subprocess.CREATE_NO_WINDOW)
+                return 0
+        except (OSError, Timeout, subprocess.SubprocessError) as exc:
+            startup_warning = f'助手可正常打开。桌面快捷方式暂未更新：{exc}'
+    desktop(args, startup_warning=startup_warning)
     return 0
 
 

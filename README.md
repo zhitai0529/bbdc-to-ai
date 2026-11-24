@@ -12,6 +12,8 @@
 
 下载 `bbdc-to-ai-windows-x64.exe` 后双击运行。适用于 Windows x64，EXE 内置 Python，无需另行安装。 [下载最新版 EXE](https://github.com/zhitai0529/bbdc-to-ai/releases/latest/download/bbdc-to-ai-windows-x64.exe)
 
+更新时先关闭旧版，再打开刚下载的 EXE 一次。助手会更新桌面快捷方式，之后可从同一个图标进入最新版。已安装的旧版本和能核对为助手旧发行版的下载副本会清理。仍在运行的旧文件会在释放后，于下次启动时再处理。学习记录、配置和复习文件沿用原来的位置。
+
 ## 首次配置 MuMu
 
 从 App 同步需要 **MuMu Android 15**，以及模拟器内的「不背单词」**5.11.8 x86**。请在 App 内登录自己的账号。已有本机记录时，可以直接离线查看或导出。
