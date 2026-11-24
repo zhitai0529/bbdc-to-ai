@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import json
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -14,6 +13,7 @@ from xml.etree import ElementTree as ET
 from filelock import FileLock
 
 from src.mumu_adb import Adb, PACKAGE
+from src.mumu_installation import discover_mumu_manager as manager_path
 
 
 class SyncError(RuntimeError):
@@ -36,15 +36,12 @@ def run_manager(manager: Path, *args: str) -> dict:
     return response
 
 
-def manager_path() -> Path:
-    return Path(os.environ.get('ProgramFiles', 'C:/Program Files')) / 'NetEase/MuMu/nx_main/MuMuManager.exe'
-
-
 def launch_mumu(manager: Path, index: str, session: Path) -> None:
     with FileLock(str(session / 'launch.lock')):
         if (session / 'cancel').exists():
             raise SyncError('同步已取消。')
         # Record ownership before starting the manager so cancellation can wait for launch to finish.
+        (session / 'mumu-manager').write_text(str(manager), encoding='utf-8')
         (session / 'mumu-instance').write_text(index, encoding='ascii')
         run_manager(manager, 'control', '-v', index, 'launch')
         if (session / 'cancel').exists():
@@ -61,13 +58,13 @@ def cancel_mumu_sync(session: Path, stop_worker: Callable[[], None]) -> None:
             index = marker.read_text(encoding='ascii').strip()
             if not re.fullmatch(r'[0-9]+', index):
                 raise SyncError('无法确认本次启动的 MuMu 实例。')
-            manager = manager_path()
+            manager = Path((session / 'mumu-manager').read_text(encoding='utf-8'))
             run_manager(manager, 'control', '-v', index, 'shutdown')
 
 
 def select_mumu() -> tuple[Path, str, dict]:
     manager = manager_path()
-    if not manager.is_file():
+    if manager is None:
         raise SyncError('找不到 MuMu 模拟器。请检查 MuMu 是否已安装。')
     instances = run_manager(manager, 'info', '-v', 'all')
     installed = [entry for entry in instances.values() if isinstance(entry, dict) and 'index' in entry]
@@ -100,7 +97,7 @@ def connect_mumu(manager: Path, index: str, instance: dict, session: Path | None
         if state.get('is_android_started') and state.get('adb_port'):
             serial = f"{state.get('adb_host_ip', '127.0.0.1')}:{state['adb_port']}"
             try:
-                adb = Adb(serial=serial)
+                adb = Adb(serial=serial, manager=manager, android_version=state.get('android_version'))
                 packages = adb.shell(f'pm path {PACKAGE} || true')
             except (RuntimeError, subprocess.TimeoutExpired):
                 pass  # The ADB port can appear before Android is ready to answer.

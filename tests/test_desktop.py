@@ -34,7 +34,9 @@ class DesktopTests(unittest.TestCase):
 
     def test_only_view_button_requests_sync(self) -> None:
         window = ReviewWindow.__new__(ReviewWindow)
-        with patch.object(window, 'start_export') as start:
+        window.job = None
+        with patch.object(window, 'ensure_mumu_manager', return_value=True), \
+                patch.object(window, 'start_export') as start:
             window.sync_and_view()
             start.assert_called_once_with(sync=True)
             start.reset_mock()
@@ -45,10 +47,9 @@ class DesktopTests(unittest.TestCase):
         window = ReviewWindow.__new__(ReviewWindow)
         window.root = Mock()
         window.job = None
-        with patch('src.desktop.manager_path') as manager, \
+        with patch('src.desktop.discover_mumu_manager', return_value=Path('MuMuManager.exe')), \
                 patch('src.desktop.messagebox.askokcancel', side_effect=[False, True]), \
                 patch.object(window, 'start_export') as start:
-            manager.return_value.is_file.return_value = True
             window.configure_mumu()
             start.assert_not_called()
             window.configure_mumu()
@@ -59,17 +60,55 @@ class DesktopTests(unittest.TestCase):
         window.root = Mock()
         window.status = Mock()
         window.job = None
-        with patch('src.desktop.manager_path') as manager, \
-                patch('src.desktop.messagebox.askyesno', side_effect=[False, True]) as prompt, \
+        with patch('src.desktop.discover_mumu_manager', return_value=None), \
+                patch('src.desktop.messagebox.askyesnocancel', side_effect=[None, False]) as prompt, \
                 patch.object(window, 'start_export') as start, \
                 patch('src.desktop.webbrowser.open', return_value=True) as browser:
-            manager.return_value.is_file.return_value = False
             window.configure_mumu()
             browser.assert_not_called()
             window.configure_mumu()
             browser.assert_called_once_with('https://mumu.163.com/')
             start.assert_not_called()
-            self.assertEqual(prompt.call_args.args[0], '需要安装 MuMu')
+            self.assertEqual(prompt.call_args.args[0], '查找 MuMu 安装位置')
+
+    def test_manually_located_mumu_is_saved_and_original_action_continues(self) -> None:
+        window = ReviewWindow.__new__(ReviewWindow)
+        window.root = Mock()
+        window.status = Mock()
+        window.job = None
+        folder = Path.cwd() / 'MuMu'
+        manager = folder / 'nx_main' / 'MuMuManager.exe'
+        with patch('src.desktop.discover_mumu_manager', return_value=None), \
+                patch('src.desktop.messagebox.askyesnocancel', return_value=True), \
+                patch('src.desktop.filedialog.askdirectory', return_value=str(folder)), \
+                patch('src.desktop.manager_in_location', return_value=manager) as find, \
+                patch('src.desktop.remember_mumu_manager') as remember, \
+                patch('src.desktop.messagebox.askokcancel', return_value=True), \
+                patch.object(window, 'start_export') as start:
+            window.configure_mumu()
+            find.assert_called_once_with(folder)
+            remember.assert_called_once_with(manager)
+            start.assert_called_once_with(sync=False, setup=True)
+            start.reset_mock()
+            window.sync_and_view()
+            start.assert_called_once_with(sync=True)
+
+    def test_invalid_mumu_folder_is_not_saved(self) -> None:
+        window = ReviewWindow.__new__(ReviewWindow)
+        window.root = Mock()
+        window.status = Mock()
+        window.job = None
+        with patch('src.desktop.discover_mumu_manager', return_value=None), \
+                patch('src.desktop.messagebox.askyesnocancel', return_value=True), \
+                patch('src.desktop.filedialog.askdirectory', return_value=str(Path.cwd())), \
+                patch('src.desktop.manager_in_location', return_value=None), \
+                patch('src.desktop.remember_mumu_manager') as remember, \
+                patch('src.desktop.messagebox.showwarning') as showwarning, \
+                patch.object(window, 'start_export') as start:
+            window.sync_and_view()
+            remember.assert_not_called()
+            start.assert_not_called()
+            showwarning.assert_called_once()
 
     def test_setup_job_keeps_review_preview_and_shows_result(self) -> None:
         window = ReviewWindow.__new__(ReviewWindow)

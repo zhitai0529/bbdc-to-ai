@@ -25,7 +25,8 @@ def inspect_archive(executable: Path) -> None:
         raise RuntimeError('Missing _cffi_backend native extension')
     for name in archive.toc:
         entry = name.lower().replace('\\', '/')
-        if (entry in {'config.yaml', 'protocol.json'} or entry.endswith(('.apk', '.db', '.mitm', '.pem', '.p12'))
+        if (entry in {'config.yaml', 'protocol.json', 'mumu-location.txt'}
+                or entry.endswith(('.apk', '.db', '.mitm', '.pem', '.p12'))
                 or {'raw_dumps', '.bbdc_state', '.local_setup', 'output'}.intersection(entry.split('/'))):
             raise RuntimeError(f'Unexpected data file in packaged application: {name}')
     with (PROJECT_ROOT / 'config.example.yaml').open('rb') as template:
@@ -60,7 +61,7 @@ def main() -> None:
             return json.loads(reply_path.read_text(encoding='utf-8'))
 
         assert run_worker('empty', 2)['status'] == 'no_records'
-        if not manager_path().is_file():
+        if manager_path() is None:
             setup_reply = area / 'setup.json'
             result = subprocess.run(
                 [str(executable), '--run-worker', 'src.mumu_setup', str(setup_reply)],

@@ -4,23 +4,25 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-import os
 from pathlib import Path
 import re
 import shlex
 import shutil
 import subprocess
 
+from src.mumu_installation import bundled_adb, discover_mumu_manager
+
 PACKAGE = 'cn.com.langeasy.LangEasyLexis'
 NO_CONSOLE = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 
 class Adb:
-    def __init__(self, executable: str | None = None, serial: str | None = None) -> None:
-        candidates = [executable, shutil.which('adb')]
-        base = Path(os.environ.get('ProgramFiles', 'C:/Program Files')) / 'NetEase/MuMu/nx_device'
-        if base.exists():
-            candidates.extend(str(p) for p in sorted(base.glob('*/shell/adb.exe'), reverse=True))
+    def __init__(self, executable: str | None = None, serial: str | None = None, *,
+                 manager: Path | None = None, android_version: str | None = None) -> None:
+        if manager is None:
+            manager = discover_mumu_manager()
+        bundled = bundled_adb(manager, android_version) if manager is not None else None
+        candidates = [executable, bundled, shutil.which('adb')]
         self.executable = next((str(p) for p in candidates if p and Path(p).is_file()), '')
         if not self.executable:
             raise FileNotFoundError('找不到 MuMu adb.exe，请通过 --adb 指定')
@@ -29,9 +31,8 @@ class Adb:
         if serial:
             self._connect(serial)
         else:
-            manager = base.parent / 'nx_main/MuMuManager.exe'
             managed_addresses: set[str] = set()
-            if manager.is_file():
+            if manager is not None:
                 info = subprocess.run([str(manager), 'info', '-v', 'all'], capture_output=True,
                                       timeout=15, creationflags=NO_CONSOLE)
                 try:

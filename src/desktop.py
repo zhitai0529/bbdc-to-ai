@@ -12,7 +12,7 @@ import webbrowser
 from src.desktop_files import latest_review, load_output_dir, save_output_dir
 from src.desktop_view import ReviewActions, ReviewView
 from src.desktop_worker import ExportJob, ExportJobResult
-from src.mumu_sync import manager_path
+from src.mumu_installation import discover_mumu_manager, manager_in_location, remember_mumu_manager
 
 
 MUMU_DOWNLOAD_URL = 'https://mumu.163.com/'
@@ -84,13 +84,11 @@ class ReviewWindow(ReviewView):
         self.start_export(sync=False)
 
     def sync_and_view(self) -> None:
-        self.start_export(sync=True)
+        if self.job is None and self.ensure_mumu_manager():
+            self.start_export(sync=True)
 
     def configure_mumu(self) -> None:
-        if self.job is not None:
-            return
-        if not manager_path().is_file():
-            self.offer_mumu_download()
+        if self.job is not None or not self.ensure_mumu_manager():
             return
         confirmed = messagebox.askokcancel(
             '一键配置 MuMu',
@@ -102,15 +100,45 @@ class ReviewWindow(ReviewView):
         if confirmed:
             self.start_export(sync=False, setup=True)
 
-    def offer_mumu_download(self) -> None:
-        self.status.set('未找到 MuMu。安装后可再次点击「一键配置 MuMu」。')
-        if not messagebox.askyesno(
-            '需要安装 MuMu',
-            '没有在默认安装位置找到 MuMu。请下载并安装 MuMu，在 Android 15 实例中安装不背单词，'
-            '然后回到助手再次点击「一键配置 MuMu」。\n\n现在打开 MuMu 官网？',
-            default='no', parent=self.root,
-        ):
-            return
+    def ensure_mumu_manager(self) -> bool:
+        if discover_mumu_manager() is not None:
+            return True
+
+        self.status.set('请手动选择 MuMu 安装目录。')
+        browse = messagebox.askyesnocancel(
+            '查找 MuMu 安装位置',
+            '助手未能自动找到 MuMu 安装目录。已安装时，可右键桌面上的 MuMu 图标，'
+            '点「打开文件所在的位置」，找到需要选择的文件夹。\n\n'
+            '是：手动选择安装目录\n'
+            '否：打开 MuMu 官网下载\n'
+            '取消：返回助手',
+            default='cancel', parent=self.root,
+        )
+        if browse is False:
+            self.open_mumu_download()
+            return False
+        if browse is None:
+            return False
+        try:
+            folder = filedialog.askdirectory(parent=self.root, title='选择 MuMu 的安装目录', mustexist=True)
+            if not folder:
+                return False
+            manager = manager_in_location(Path(folder))
+            if manager is None:
+                messagebox.showwarning(
+                    '没找到 MuMu 管理程序',
+                    '请选择 MuMu 安装目录，或桌面快捷方式「打开文件所在的位置」显示的目录。',
+                    parent=self.root,
+                )
+                return False
+            remember_mumu_manager(manager)
+        except (OSError, ValueError, tk.TclError) as exc:
+            messagebox.showerror('无法保存 MuMu 安装位置', str(exc), parent=self.root)
+            return False
+        return True
+
+    def open_mumu_download(self) -> None:
+        self.status.set('安装 MuMu 后可以再次配置或同步。')
         try:
             if webbrowser.open(MUMU_DOWNLOAD_URL):
                 return

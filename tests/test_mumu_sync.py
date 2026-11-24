@@ -28,7 +28,7 @@ class MumuSyncTests(unittest.TestCase):
             started = {'index': '3', 'is_process_started': True, 'is_android_started': True, 'adb_port': 16416}
             device = Mock()
             device.shell.side_effect = [RuntimeError('ADB offline'), 'package:/data/app/base.apk']
-            with patch.dict('os.environ', {'ProgramFiles': folder}), \
+            with patch('src.mumu_sync.manager_path', return_value=manager), \
                     patch('src.mumu_sync.run_manager', side_effect=[{'3': stopped}, stopped, {}, started, started, {}, {}]) as run, \
                     patch('src.mumu_sync.Adb', return_value=device), patch('src.mumu_sync.time.sleep'):
                 self.assertIs(open_mumu(session), device)
@@ -40,6 +40,17 @@ class MumuSyncTests(unittest.TestCase):
                               ('control', '-v', '3', 'app', 'launch', '-pkg', PACKAGE),
                               ('control', '-v', '3', 'shutdown')])
             self.assertEqual(device.shell.call_count, 2)
+
+    def test_sync_uses_adb_from_detected_installation(self) -> None:
+        manager = Path('Custom Install/nx_main/MuMuManager.exe')
+        state = {'index': '2', 'is_process_started': True, 'is_android_started': True,
+                 'adb_port': 16416, 'android_version': '15.0'}
+        with patch('src.mumu_sync.manager_path', return_value=manager), \
+                patch('src.mumu_sync.run_manager', side_effect=[{'2': state}, {}]), \
+                patch('src.mumu_sync.Adb') as adb:
+            adb.return_value.shell.return_value = 'package:/data/app/base.apk'
+            self.assertIs(open_mumu(), adb.return_value)
+        adb.assert_called_once_with(serial='127.0.0.1:16416', manager=manager, android_version='15.0')
 
     def test_cancel_does_not_shutdown_an_already_running_instance(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
