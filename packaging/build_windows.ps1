@@ -13,8 +13,12 @@ Push-Location -LiteralPath $projectRoot
 try {
     Push-Location -LiteralPath (Join-Path $projectRoot 'flutter_ui')
     try {
-        flutter build windows --release
-        if ($LASTEXITCODE -ne 0) { throw 'Flutter Windows build failed.' }
+        $log = Join-Path ([System.IO.Path]::GetTempPath()) "bbdc-flutter-build-$PID.log"
+        flutter build windows --release --verbose *> $log
+        if ($LASTEXITCODE -ne 0) {
+            Get-Content -LiteralPath $log -Tail 150
+            throw 'Flutter Windows build failed.'
+        }
     } finally {
         Pop-Location
     }
