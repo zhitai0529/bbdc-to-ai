@@ -4,19 +4,62 @@ import 'dart:ui' show AppExitResponse;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'appearance.dart';
 import 'bridge.dart';
 import 'overview.dart';
 import 'pages.dart';
 
 void main(List<String> args) {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(ReviewApp(call: PythonBridge().call, smoke: args.contains('--smoke')));
+  final mode = ThemeMode.values.firstWhere(
+    (mode) => args.contains('--theme=${mode.name}'),
+    orElse: () => ThemeMode.system,
+  );
+  runApp(
+    ReviewApp(
+      call: PythonBridge().call,
+      smoke: args.contains('--smoke'),
+      initialMode: mode,
+    ),
+  );
 }
 
-class ReviewApp extends StatelessWidget {
-  const ReviewApp({super.key, required this.call, this.smoke = false});
+class ReviewApp extends StatefulWidget {
+  const ReviewApp({
+    super.key,
+    required this.call,
+    this.smoke = false,
+    this.initialMode = ThemeMode.system,
+  });
   final HostCall call;
   final bool smoke;
+  final ThemeMode initialMode;
+
+  @override
+  State<ReviewApp> createState() => _ReviewAppState();
+}
+
+class _ReviewAppState extends State<ReviewApp> {
+  late ThemeMode mode = widget.initialMode;
+  bool saving = false;
+
+  Future<void> changeTheme(ThemeMode next) async {
+    if (mode == next || saving) return;
+    final previous = mode;
+    setState(() {
+      mode = next;
+      saving = true;
+    });
+    try {
+      await widget.call('save_theme', [next.name]);
+    } catch (_) {
+      if (mounted) setState(() => mode = previous);
+      rethrow;
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
   ThemeData theme(Brightness brightness) {
     final dark = brightness == Brightness.dark;
     final scheme =
@@ -27,9 +70,10 @@ class ReviewApp extends StatelessWidget {
           primary: Color(dark ? 0xffaec6ff : 0xff0e58c8),
           onPrimary: Color(dark ? 0xff002e6c : 0xffffffff),
           primaryContainer: Color(dark ? 0xff004397 : 0xffd8e2ff),
-          surface: Color(dark ? 0xff121317 : 0xfffbf8fd),
-          surfaceContainerLow: Color(dark ? 0xff1a1b20 : 0xfff5f2f7),
-          surfaceContainer: Color(dark ? 0xff1e2025 : 0xffefecf1),
+          surface: Color(dark ? 0xff1a2130 : 0xfffbf8fd),
+          surfaceContainerLow: Color(dark ? 0xff202a3a : 0xfff5f2f7),
+          surfaceContainer: Color(dark ? 0xff232d40 : 0xffefecf1),
+          surfaceContainerHighest: dark ? const Color(0xff354155) : null,
         );
     return ThemeData(
       useMaterial3: true,
@@ -50,18 +94,31 @@ class ReviewApp extends StatelessWidget {
     title: '不背单词复习助手',
     theme: theme(Brightness.light),
     darkTheme: theme(Brightness.dark),
-    themeMode: ThemeMode.system,
+    themeMode: mode,
     locale: const Locale('zh', 'CN'),
     supportedLocales: const [Locale('zh', 'CN')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    home: Shell(call: call, smoke: smoke),
+    home: Shell(
+      call: widget.call,
+      smoke: widget.smoke,
+      mode: mode,
+      changeTheme: saving ? null : changeTheme,
+    ),
   );
 }
 
 class Shell extends StatefulWidget {
-  const Shell({super.key, required this.call, required this.smoke});
+  const Shell({
+    super.key,
+    required this.call,
+    required this.smoke,
+    required this.mode,
+    required this.changeTheme,
+  });
   final HostCall call;
   final bool smoke;
+  final ThemeMode mode;
+  final Future<void> Function(ThemeMode)? changeTheme;
   @override
   State<Shell> createState() => _ShellState();
 }
@@ -123,6 +180,10 @@ class _ShellState extends State<Shell> {
       });
       if (widget.smoke) {
         await WidgetsBinding.instance.endOfFrame;
+        final nextMode = widget.mode == ThemeMode.dark
+            ? ThemeMode.light
+            : ThemeMode.dark;
+        await widget.changeTheme?.call(nextMode);
         await widget.call('select_day', [data!['day']]);
         if (!mounted) return;
         setState(() => page = 1);
@@ -144,6 +205,14 @@ class _ShellState extends State<Shell> {
       ..showSnackBar(
         SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
       );
+  }
+
+  Future<void> changeTheme(ThemeMode mode) async {
+    try {
+      await widget.changeTheme?.call(mode);
+    } catch (_) {
+      notify('主题保存失败，请重试。');
+    }
   }
 
   Future<void> perform(Future<void> Function() fn) async {
@@ -477,6 +546,12 @@ class _ShellState extends State<Shell> {
                             ),
                             label: Text(copied ? '已复制' : '复制全部内容'),
                           ),
+                          ThemeMenu(
+                            mode: widget.mode,
+                            onChanged: widget.changeTheme == null
+                                ? null
+                                : changeTheme,
+                          ),
                         ],
                       ),
                     ],
@@ -522,6 +597,10 @@ class _ShellState extends State<Shell> {
                                 setup: busy ? null : () => task('setup'),
                                 change: busy ? null : change,
                                 open: open,
+                                mode: widget.mode,
+                                changeTheme: widget.changeTheme == null
+                                    ? null
+                                    : changeTheme,
                               ),
                             },
                           ),

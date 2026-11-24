@@ -1,12 +1,25 @@
 from io import StringIO
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
-from src.flutter_window import serve
+from src.flutter_window import FlutterAPI, read_theme, serve
 
 
 class FlutterWindowTests(unittest.TestCase):
+    def test_theme_preference_is_validated_and_read_from_local_profile(self):
+        with TemporaryDirectory() as temp, patch('src.flutter_window.data_directory', return_value=Path(temp)):
+            self.assertEqual(read_theme(), 'system')
+            FlutterAPI().save_theme('light')
+            self.assertEqual(read_theme(), 'light')
+            with self.assertRaises(ValueError):
+                FlutterAPI().save_theme('invalid')
+            self.assertEqual(read_theme(), 'light')
+            (Path(temp) / 'appearance-theme.txt').write_bytes(b'\xff')
+            self.assertEqual(read_theme(), 'system')
+
     def test_private_pipe_round_trips_errors_and_closes_when_window_exits(self):
         api = Mock()
         api.initialize.return_value = {'data': {'prompt': '第一行\n第二行'}}

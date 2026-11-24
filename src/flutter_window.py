@@ -9,10 +9,31 @@ import subprocess
 from typing import TextIO
 
 from src.dashboard import DashboardAPI
-from src.runtime import PROJECT_ROOT, is_packaged
+from src.runtime import PROJECT_ROOT, data_directory, is_packaged
+from src.storage import atomic_write
+
+
+THEME_MODES = ('system', 'light', 'dark')
+
+
+def theme_path() -> Path:
+    return data_directory() / 'appearance-theme.txt'
+
+
+def read_theme() -> str:
+    try:
+        value = theme_path().read_text(encoding='utf-8').strip()
+    except (OSError, UnicodeError):
+        return 'system'
+    return value if value in THEME_MODES else 'system'
 
 
 class FlutterAPI(DashboardAPI):
+    def save_theme(self, mode: str) -> None:
+        if mode not in THEME_MODES:
+            raise ValueError('无效的主题选项。')
+        atomic_write(theme_path(), mode + '\n')
+
     def _choose(self, initial: str = '') -> Path | None:
         # Folder dialogs execute on the Python host's main thread.
         import tkinter as tk
@@ -29,7 +50,7 @@ class FlutterAPI(DashboardAPI):
 
 def serve(api: FlutterAPI, requests: TextIO, replies: TextIO) -> None:
     methods = {name: getattr(api, name) for name in (
-        'initialize', 'select_day', 'save_prompt', 'open_folder', 'change_folder',
+        'initialize', 'select_day', 'save_prompt', 'save_theme', 'open_folder', 'change_folder',
         'locate_manager', 'download_mumu', 'start', 'poll',
     )}
     try:
@@ -69,7 +90,7 @@ def run_window(argv: Sequence[str] | None = None, *, startup_warning: str | None
     parser.add_argument('--open-latest', action='store_true')
     args = parser.parse_args(argv)
     executable = binary()
-    with subprocess.Popen([str(executable), *(['--smoke'] if smoke else [])],
+    with subprocess.Popen([str(executable), f'--theme={read_theme()}', *(['--smoke'] if smoke else [])],
                           cwd=executable.parent, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                           stderr=subprocess.DEVNULL, text=True, encoding='utf-8', errors='replace',
                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)) as process:

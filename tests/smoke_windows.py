@@ -94,7 +94,12 @@ def main() -> None:
         assert '| opaque | 不透明的 | 复习不会 | 1 |' in destination.read_text(encoding='utf-8')
         assert not (config.output_dir / f'{day}_unknown_codes.md').exists()
         subprocess.run([str(executable), '--check-dashboard'], env=env, cwd=area, timeout=65, check=True)
+        theme = app_data / 'appearance-theme.txt'
+        theme.write_text('dark\n', encoding='utf-8')
         subprocess.run([str(executable), '--check-flutter'], env=env, cwd=area, timeout=65, check=True)
+        assert theme.read_text(encoding='utf-8').strip() == 'light'
+        subprocess.run([str(executable), '--check-flutter'], env=env, cwd=area, timeout=65, check=True)
+        assert theme.read_text(encoding='utf-8').strip() == 'dark'
     print('Standalone EXE smoke test passed.')
 
 

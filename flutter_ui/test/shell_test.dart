@@ -32,6 +32,69 @@ Json sample(String day) => {
   'window': 7,
 };
 void main() {
+  testWidgets(
+    'Theme changes keep the active Markdown draft and sync both controls',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+
+      final saved = <String>[];
+      Future<dynamic> host(
+        String method, [
+        List<dynamic> args = const [],
+      ]) async {
+        if (method == 'initialize') return {'data': sample('2026-11-24')};
+        if (method == 'save_theme') {
+          saved.add(args.single as String);
+          return null;
+        }
+        throw UnsupportedError(method);
+      }
+
+      await tester.pumpWidget(
+        ReviewApp(call: host, initialMode: ThemeMode.light),
+      );
+      await tester.pumpAndSettle();
+      Brightness brightness() =>
+          Theme.of(tester.element(find.byType(Scaffold))).brightness;
+      expect(brightness(), Brightness.light);
+
+      await tester.tap(find.text('复习预览'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('源码编辑'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '# 未保存草稿');
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('切换主题 · 日间模式'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('夜间模式'));
+      await tester.pumpAndSettle();
+      expect(brightness(), Brightness.dark);
+      expect(find.text('# 未保存草稿'), findsOneWidget);
+      expect(find.text('有未保存的修改'), findsOneWidget);
+
+      await tester.tap(find.text('MuMu 与设置'));
+      await tester.pumpAndSettle();
+      final selector = find.byType(SegmentedButton<ThemeMode>);
+      expect(tester.widget<SegmentedButton<ThemeMode>>(selector).selected, {
+        ThemeMode.dark,
+      });
+      await tester.tap(find.text('跟随系统'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('切换主题 · 跟随系统'), findsOneWidget);
+      expect(brightness(), Brightness.dark);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      await tester.pumpAndSettle();
+      expect(brightness(), Brightness.light);
+      expect(saved, ['dark', 'system']);
+    },
+  );
+
   for (final width in [860.0, 1200.0, 1500.0]) {
     testWidgets('Native dashboard and preview at width $width', (tester) async {
       tester.view.devicePixelRatio = 1;

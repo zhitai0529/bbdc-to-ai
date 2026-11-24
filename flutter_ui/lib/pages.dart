@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'appearance.dart';
 import 'bridge.dart';
 import 'widgets.dart';
 
@@ -237,12 +238,16 @@ class SettingsPage extends StatelessWidget {
     required this.setup,
     required this.change,
     required this.open,
+    required this.mode,
+    required this.changeTheme,
   });
   final Json data;
   final String adb, root;
   final List<String> logs;
   final VoidCallback? setup, change;
   final VoidCallback open;
+  final ThemeMode mode;
+  final ValueChanged<ThemeMode>? changeTheme;
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).colorScheme;
@@ -253,6 +258,30 @@ class SettingsPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Section(
+              '外观主题',
+              Icons.palette_outlined,
+              SegmentedButton<ThemeMode>(
+                showSelectedIcon: false,
+                segments: [
+                  for (final option in [
+                    ThemeMode.light,
+                    ThemeMode.dark,
+                    ThemeMode.system,
+                  ])
+                    ButtonSegment(
+                      value: option,
+                      icon: Icon(option.icon),
+                      label: Text(option.label),
+                    ),
+                ],
+                selected: {mode},
+                onSelectionChanged: changeTheme == null
+                    ? null
+                    : (selection) => changeTheme!(selection.single),
+              ),
+            ),
+            const SizedBox(height: 16),
             Section(
               'MuMu 模拟器环境',
               Icons.computer,

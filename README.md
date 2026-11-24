@@ -44,7 +44,7 @@ EXE 首次运行会在 `%LOCALAPPDATA%\bbdc-to-ai` 创建独立配置和缓存�
 
 首页展示学习词量、顽固词排行、24 周热力图和熟词占比。图表来自本机 SQLite 与每日缓存，缺记录的日期留空。侧栏的「历史与惯犯词」可查看跨天重复出现的词和当日未知编码。完整 Prompt 在「复习预览」中，修改后点「保存修改」写回复习文件；重新导出会按学习记录重新生成正文。
 
-Windows 版使用 Flutter 原生 Material 3 界面，主题跟随系统明暗设置。宽窗口显示完整导航，窄窗口收起侧栏，图表改为纵向排列。点击热力图中有记录的日期即可查看当天数据。复习预览支持 Markdown 阅读与源码编辑，在宽窗口编辑时可左右对照。同步、导出和关闭任务仍由本机 Python 后台处理。配色与组件层级参考了 [TsumugiSub](https://github.com/nihaina/SubtitleEditforAndroid)。
+Windows 版使用 Flutter 原生 Material 3 界面。点顶栏主题图标，或打开「MuMu 与设置 → 外观主题」，可选日间、夜间或跟随系统。助手会记住选择，首次启动默认跟随 Windows。宽窗口显示完整导航，窄窗口收起侧栏，图表改为纵向排列。点击热力图中有记录的日期即可查看当天数据。复习预览支持 Markdown 阅读与源码编辑，在宽窗口编辑时可左右对照。同步、导出和关闭任务仍由本机 Python 后台处理。配色与组件层级参考了 [TsumugiSub](https://github.com/nihaina/SubtitleEditforAndroid)。
 
 ## 从源码运行
 
