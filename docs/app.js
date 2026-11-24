@@ -157,7 +157,7 @@
         url,
         function () {
           flash(button, "链接已复制");
-          announce("链接已复制。请在电脑浏览器里粘贴打开，再下载 Windows 版。");
+          announce("链接已复制。请在电脑浏览器打开本页，再前往 GitHub 下载 Windows 版。");
         },
         function () {
           announce("请手动复制地址栏链接，在电脑上打开本页。");

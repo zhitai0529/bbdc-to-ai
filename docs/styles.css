@@ -101,7 +101,7 @@ code {
   border: 1px solid var(--line);
   border-radius: var(--r-1);
   background: var(--paper-2);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 :focus-visible {

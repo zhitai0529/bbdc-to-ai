@@ -10,6 +10,8 @@
 
 [访问项目主页](https://zhitai0529.github.io/bbdc-to-ai/) · [查看全部版本](https://github.com/zhitai0529/bbdc-to-ai/releases)
 
+项目主页的下载按钮会打开 GitHub 最新发布页。进入 Assets（附件）即可选择 Windows x64 EXE。
+
 ## 下载 Windows 版
 
 下载 `bbdc-to-ai-windows-x64.exe` 后双击运行。适用于 Windows x64，EXE 内置 Python，无需另行安装。 [下载最新版 EXE](https://github.com/zhitai0529/bbdc-to-ai/releases/latest/download/bbdc-to-ai-windows-x64.exe)
