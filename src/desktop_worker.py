@@ -20,7 +20,7 @@ from src.runtime import data_directory, is_packaged
 
 @dataclass(frozen=True)
 class ExportJobResult:
-    status: Literal['exported', 'no_records', 'configured', 'error', 'cancelled']
+    status: Literal['exported', 'no_records', 'configured', 'app_missing', 'mumu_missing', 'error', 'cancelled']
     sync: bool
     output: Path | None = None
     message: str | None = None
@@ -35,6 +35,8 @@ class ExportJobResult:
 def parse_result(returncode: int, output_text: str, *, sync: bool, setup: bool = False) -> ExportJobResult:
     reply = json.loads(output_text)
     statuses = {0: 'configured', 1: 'error'} if setup else {0: 'exported', 1: 'error', 2: 'no_records'}
+    if sync or setup:
+        statuses.update({3: 'app_missing', 4: 'mumu_missing'})
     expected_status = statuses.get(returncode)
     if expected_status is None or not isinstance(reply, dict) or reply.get('status') != expected_status:
         raise ValueError('导出程序返回了无效的结果')
@@ -59,7 +61,7 @@ def parse_result(returncode: int, output_text: str, *, sync: bool, setup: bool =
         return ExportJobResult('no_records', sync, day=day, last_day=last_day)
 
     message = reply.get('message')
-    return ExportJobResult('configured' if expected_status == 'configured' else 'error', sync,
+    return ExportJobResult(expected_status, sync,
                            message=message if isinstance(message, str) else None, setup=setup)
 
 
@@ -76,7 +78,7 @@ def python_command() -> tuple[str, dict[str, str]]:
 
 
 class ExportJob:
-    def __init__(self, *, sync: bool, setup: bool = False) -> None:
+    def __init__(self, *, sync: bool, setup: bool = False, manager: Path | None = None) -> None:
         self.sync = sync
         self.setup = setup
         self.cancellation: Future[ExportJobResult] | None = None
@@ -98,6 +100,8 @@ class ExportJob:
                 command.extend(('--sync-mumu', '--latest'))
             if sync or setup:
                 command.extend(('--scratch-dir', self.scratch.name))
+                if manager is not None:
+                    command.extend(('--mumu-manager', str(manager)))
             self.process = subprocess.Popen(
                 command, cwd=data_directory() if packaged else PROJECT_ROOT,
                 stdout=self.output if self.output is not None else subprocess.DEVNULL,
@@ -152,7 +156,7 @@ class ExportJob:
     def cancel(self) -> None:
         try:
             if self.sync or self.setup:
-                from src.mumu_sync import cancel_mumu_sync
+                from src.mumu_connection import cancel_mumu_sync
                 cancel_mumu_sync(Path(self.scratch.name), self.stop_process)
             else:
                 self.stop_process()

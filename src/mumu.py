@@ -15,6 +15,7 @@ from rich.console import Console
 from src.bbdc_schema import meaning_text, study_date
 from src.config import Config, load_config
 from src.mumu_adb import Adb, PACKAGE as PACKAGE
+from src.mumu_connection import AppNotInstalled, MumuNotFound, open_mumu
 from src.mumu_snapshot import copy_database, enrich_meanings, read_learning_rows, read_protocol
 from src.mumu_snapshot import snapshot_rows as snapshot_rows
 from src.parser import parse_time
@@ -104,14 +105,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument('--sync-mumu', action='store_true', help='启动 MuMu 并在不背单词中同步后再导出')
     parser.add_argument('--json', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--scratch-dir', type=Path, help=argparse.SUPPRESS)
+    parser.add_argument('--mumu-manager', type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.sync_mumu and (args.serial or args.adb):
         parser.error('--sync-mumu 会选择 MuMu 实例，请勿同时指定 --serial 或 --adb')
+    if args.mumu_manager and not args.sync_mumu:
+        parser.error('--mumu-manager 需要配合 --sync-mumu 使用')
     try:
         config = load_config(args.config)
         if args.sync_mumu:
-            from src.mumu_sync import open_mumu, sync_learning_records
-            adb = open_mumu(args.scratch_dir)
+            from src.mumu_sync import sync_learning_records
+            adb = open_mumu(args.scratch_dir, manager=args.mumu_manager)
             sync_learning_records(adb)
         else:
             adb = Adb(args.adb, args.serial)
@@ -124,6 +128,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             console.print(str(exc), style='yellow', markup=False)
         return 2
+    except (AppNotInstalled, MumuNotFound) as exc:
+        if args.json:
+            print(json.dumps({'status': exc.status, 'message': str(exc)}, ensure_ascii=False))
+        else:
+            console.print(str(exc), style='yellow', markup=False)
+        return exc.exit_code
     except Exception as exc:
         if args.json:
             print(json.dumps({'status': 'error', 'message': str(exc)}, ensure_ascii=False))

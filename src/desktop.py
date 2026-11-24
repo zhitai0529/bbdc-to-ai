@@ -7,15 +7,12 @@ import os
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox
-import webbrowser
 
 from src.desktop_files import latest_review, load_output_dir, save_output_dir
+from src.desktop_mumu import MumuDialogs
 from src.desktop_view import ReviewActions, ReviewView
 from src.desktop_worker import ExportJob, ExportJobResult
-from src.mumu_installation import discover_mumu_manager, manager_in_location, remember_mumu_manager
-
-
-MUMU_DOWNLOAD_URL = 'https://mumu.163.com/'
+from src.version import VERSION
 
 
 class ReviewWindow(ReviewView):
@@ -30,6 +27,8 @@ class ReviewWindow(ReviewView):
             sync=self.sync_and_view, setup=self.configure_mumu, export=self.export, copy=self.copy,
             change_folder=self.change_folder, open_folder=self.open_folder,
         ))
+        self.mumu = MumuDialogs(root, self.status.set)
+        root.title(f'不背单词复习助手 v{VERSION}')
 
     def open_latest(self, status: str = '正在查看已保存的复习', *,
                     empty_status: str = '此目录还没有复习文件。首次使用可先点「一键配置 MuMu」，再点「查看已有复习」。') -> bool:
@@ -84,73 +83,19 @@ class ReviewWindow(ReviewView):
         self.start_export(sync=False)
 
     def sync_and_view(self) -> None:
-        if self.job is None and self.ensure_mumu_manager():
-            self.start_export(sync=True)
+        if self.job is None and (manager := self.mumu.select_manager()) is not None:
+            self.start_export(sync=True, manager=manager)
 
     def configure_mumu(self) -> None:
-        if self.job is not None or not self.ensure_mumu_manager():
-            return
-        confirmed = messagebox.askokcancel(
-            '一键配置 MuMu',
-            '助手会开启所选 MuMu 实例的 Root，并检查 ADB 和不背单词版本。'
-            '需要重启时会关闭并重新打开该实例，请先结束当前学习。\n\n'
-            '配置通过后，在 MuMu 里登录不背单词，再回到助手点「查看已有复习」。',
-            parent=self.root,
-        )
-        if confirmed:
-            self.start_export(sync=False, setup=True)
+        if (self.job is None and (manager := self.mumu.select_manager()) is not None
+                and self.mumu.confirm_setup()):
+            self.start_export(sync=False, setup=True, manager=manager)
 
-    def ensure_mumu_manager(self) -> bool:
-        if discover_mumu_manager() is not None:
-            return True
-
-        self.status.set('请手动选择 MuMu 安装目录。')
-        browse = messagebox.askyesnocancel(
-            '查找 MuMu 安装位置',
-            '助手未能自动找到 MuMu 安装目录。已安装时，可右键桌面上的 MuMu 图标，'
-            '点「打开文件所在的位置」，找到需要选择的文件夹。\n\n'
-            '是：手动选择安装目录\n'
-            '否：打开 MuMu 官网下载\n'
-            '取消：返回助手',
-            default='cancel', parent=self.root,
-        )
-        if browse is False:
-            self.open_mumu_download()
-            return False
-        if browse is None:
-            return False
-        try:
-            folder = filedialog.askdirectory(parent=self.root, title='选择 MuMu 的安装目录', mustexist=True)
-            if not folder:
-                return False
-            manager = manager_in_location(Path(folder))
-            if manager is None:
-                messagebox.showwarning(
-                    '没找到 MuMu 管理程序',
-                    '请选择 MuMu 安装目录，或桌面快捷方式「打开文件所在的位置」显示的目录。',
-                    parent=self.root,
-                )
-                return False
-            remember_mumu_manager(manager)
-        except (OSError, ValueError, tk.TclError) as exc:
-            messagebox.showerror('无法保存 MuMu 安装位置', str(exc), parent=self.root)
-            return False
-        return True
-
-    def open_mumu_download(self) -> None:
-        self.status.set('安装 MuMu 后可以再次配置或同步。')
-        try:
-            if webbrowser.open(MUMU_DOWNLOAD_URL):
-                return
-        except (OSError, webbrowser.Error):
-            pass
-        messagebox.showwarning('打开 MuMu 官网', f'请在浏览器访问 {MUMU_DOWNLOAD_URL}。', parent=self.root)
-
-    def start_export(self, *, sync: bool, setup: bool = False) -> None:
+    def start_export(self, *, sync: bool, setup: bool = False, manager: Path | None = None) -> None:
         if self.job is not None:
             return
         try:
-            self.job = ExportJob(sync=sync, setup=setup)
+            self.job = ExportJob(sync=sync, setup=setup, manager=manager)
         except OSError as exc:
             self.status.set('无法启动后台任务。')
             messagebox.showerror('启动失败', str(exc), parent=self.root)
@@ -187,20 +132,8 @@ class ReviewWindow(ReviewView):
             self.root.after(1500, lambda: self.root.attributes('-topmost', False))
 
     def show_result(self, result: ExportJobResult) -> None:
-        if result.setup:
-            message = result.message or '本次未完成配置，可以重新点击「一键配置 MuMu」。'
-            self.status.set(message)
-            if result.status == 'configured':
-                messagebox.showinfo(
-                    '配置完成',
-                    'MuMu、ADB 和不背单词版本检查通过。\n\n'
-                    '1. 在 MuMu 中打开不背单词，确认已登录自己的账号。\n'
-                    '2. 回到助手，点击「查看已有复习」同步记录。\n'
-                    '3. 词表出现后，点击「复制全部内容」，或用「仅看本地文件」打开导出目录。',
-                    parent=self.root,
-                )
-            elif result.status == 'error':
-                messagebox.showwarning('MuMu 配置未完成', message, parent=self.root)
+        if result.setup or result.status in ('app_missing', 'mumu_missing'):
+            self.mumu.show_result(result)
         elif result.status == 'exported' and result.output is not None:
             details = ''
             if result.sync and result.new_word_count is not None:

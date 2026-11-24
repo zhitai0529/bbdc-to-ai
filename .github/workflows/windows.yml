@@ -34,6 +34,12 @@ jobs:
       - name: Build executable
         shell: pwsh
         run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $appVersion = python -c "from src.version import VERSION; print(VERSION)"
+            if ($LASTEXITCODE -ne 0 -or "v$appVersion" -ne $env:GITHUB_REF_NAME) {
+              throw 'The release tag and application version must match.'
+            }
+          }
           ./packaging/build_windows.ps1 -Python python
           Rename-Item dist/bbdc-to-ai.exe bbdc-to-ai-windows-x64.exe
           python -m tests.smoke_windows dist/bbdc-to-ai-windows-x64.exe --inspect

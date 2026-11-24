@@ -53,7 +53,6 @@ def configure_styles(root: tk.Tk) -> None:
 
 class ReviewView:
     def __init__(self, root: tk.Tk, output_dir: Path, actions: ReviewActions) -> None:
-        root.title('不背单词复习助手')
         root.geometry('1060x720')
         root.configure(background=BACKGROUND)
         configure_styles(root)

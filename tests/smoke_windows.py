@@ -10,14 +10,22 @@ import sys
 from tempfile import TemporaryDirectory
 
 from src.config import PROJECT_ROOT, load_config
-from src.mumu_sync import manager_path
 from src.pipeline import process_payload
+from src.version import VERSION
 
 
 def inspect_archive(executable: Path) -> None:
     from PyInstaller.archive.readers import CArchiveReader
 
+    from PyInstaller.utils.win32.versioninfo import read_version_info_from_executable
+
     archive = CArchiveReader(str(executable))
+    version_info = read_version_info_from_executable(str(executable))
+    expected_version = (*map(int, VERSION.split('.')), 0)
+    if version_info is None or (version_info.ffi.fileVersionMS >> 16, version_info.ffi.fileVersionMS & 65535,
+                                version_info.ffi.fileVersionLS >> 16, version_info.ffi.fileVersionLS & 65535
+                                ) != expected_version:
+        raise RuntimeError(f'Expected Windows executable version {VERSION}')
     required = {'config.example.yaml', 'rules.yaml', 'THIRD-PARTY-NOTICES.txt'}
     if missing := required.difference(archive.toc):
         raise RuntimeError(f'Missing packaged resources: {sorted(missing)}')
@@ -61,15 +69,15 @@ def main() -> None:
             return json.loads(reply_path.read_text(encoding='utf-8'))
 
         assert run_worker('empty', 2)['status'] == 'no_records'
-        if manager_path() is None:
-            setup_reply = area / 'setup.json'
-            result = subprocess.run(
-                [str(executable), '--run-worker', 'src.mumu_setup', str(setup_reply)],
-                cwd=area, env=env, timeout=60,
-            )
-            setup = json.loads(setup_reply.read_text(encoding='utf-8'))
-            if result.returncode != 1 or setup['status'] != 'error' or '找不到 MuMu' not in setup['message']:
-                raise RuntimeError(f'Unexpected result when MuMu is absent: {result.returncode}, {setup}')
+        setup_reply = area / 'setup.json'
+        result = subprocess.run(
+            [str(executable), '--run-worker', 'src.mumu_setup', str(setup_reply),
+             '--mumu-manager', str(area / 'missing' / 'MuMuManager.exe')],
+            cwd=area, env=env, timeout=60,
+        )
+        setup = json.loads(setup_reply.read_text(encoding='utf-8'))
+        if result.returncode != 4 or setup['status'] != 'mumu_missing':
+            raise RuntimeError(f'Unexpected result when the selected MuMu path is absent: {result.returncode}, {setup}')
         config = load_config(app_data / 'config.yaml')
         assert config.output_dir == app_data / 'output'
         assert config.output_dir.is_relative_to(profile)

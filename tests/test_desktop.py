@@ -11,7 +11,8 @@ import yaml
 from src.config import PROJECT_ROOT, load_config
 from src.desktop import ReviewWindow, main
 from src.desktop_files import latest_review, load_output_dir, save_output_dir
-from src.desktop_worker import ExportJob, ExportJobResult
+from src.desktop_mumu import MumuDialogs
+from src.desktop_worker import ExportJob, ExportJobResult, parse_result
 from src.pipeline import process_payload
 
 
@@ -35,10 +36,12 @@ class DesktopTests(unittest.TestCase):
     def test_only_view_button_requests_sync(self) -> None:
         window = ReviewWindow.__new__(ReviewWindow)
         window.job = None
-        with patch.object(window, 'ensure_mumu_manager', return_value=True), \
-                patch.object(window, 'start_export') as start:
+        window.mumu = Mock()
+        manager = Path('MuMuManager.exe')
+        window.mumu.select_manager.return_value = manager
+        with patch.object(window, 'start_export') as start:
             window.sync_and_view()
-            start.assert_called_once_with(sync=True)
+            start.assert_called_once_with(sync=True, manager=manager)
             start.reset_mock()
             window.export()
             start.assert_called_once_with(sync=False)
@@ -47,23 +50,26 @@ class DesktopTests(unittest.TestCase):
         window = ReviewWindow.__new__(ReviewWindow)
         window.root = Mock()
         window.job = None
-        with patch('src.desktop.discover_mumu_manager', return_value=Path('MuMuManager.exe')), \
-                patch('src.desktop.messagebox.askokcancel', side_effect=[False, True]), \
-                patch.object(window, 'start_export') as start:
+        window.mumu = Mock()
+        manager = Path('MuMuManager.exe')
+        window.mumu.select_manager.return_value = manager
+        window.mumu.confirm_setup.side_effect = [False, True]
+        with patch.object(window, 'start_export') as start:
             window.configure_mumu()
             start.assert_not_called()
             window.configure_mumu()
-            start.assert_called_once_with(sync=False, setup=True)
+            start.assert_called_once_with(sync=False, setup=True, manager=manager)
 
     def test_missing_mumu_offers_official_download_without_starting_setup(self) -> None:
         window = ReviewWindow.__new__(ReviewWindow)
         window.root = Mock()
         window.status = Mock()
         window.job = None
-        with patch('src.desktop.discover_mumu_manager', return_value=None), \
-                patch('src.desktop.messagebox.askyesnocancel', side_effect=[None, False]) as prompt, \
+        window.mumu = MumuDialogs(window.root, window.status.set)
+        with patch('src.desktop_mumu.discover_mumu_manager', return_value=None), \
+                patch('src.desktop_mumu.messagebox.askyesnocancel', side_effect=[None, False]) as prompt, \
                 patch.object(window, 'start_export') as start, \
-                patch('src.desktop.webbrowser.open', return_value=True) as browser:
+                patch('src.desktop_mumu.webbrowser.open', return_value=True) as browser:
             window.configure_mumu()
             browser.assert_not_called()
             window.configure_mumu()
@@ -76,34 +82,33 @@ class DesktopTests(unittest.TestCase):
         window.root = Mock()
         window.status = Mock()
         window.job = None
+        window.mumu = MumuDialogs(window.root, window.status.set)
         folder = Path.cwd() / 'MuMu'
         manager = folder / 'nx_main' / 'MuMuManager.exe'
-        with patch('src.desktop.discover_mumu_manager', return_value=None), \
-                patch('src.desktop.messagebox.askyesnocancel', return_value=True), \
-                patch('src.desktop.filedialog.askdirectory', return_value=str(folder)), \
-                patch('src.desktop.manager_in_location', return_value=manager) as find, \
-                patch('src.desktop.remember_mumu_manager') as remember, \
-                patch('src.desktop.messagebox.askokcancel', return_value=True), \
+        with patch('src.desktop_mumu.discover_mumu_manager', return_value=None), \
+                patch('src.desktop_mumu.messagebox.askyesnocancel', return_value=True), \
+                patch('src.desktop_mumu.filedialog.askdirectory', return_value=str(folder)), \
+                patch('src.desktop_mumu.manager_in_location', return_value=manager) as find, \
+                patch('src.desktop_mumu.remember_mumu_manager') as remember, \
+                patch('src.desktop_mumu.messagebox.askokcancel', return_value=True), \
                 patch.object(window, 'start_export') as start:
             window.configure_mumu()
             find.assert_called_once_with(folder)
             remember.assert_called_once_with(manager)
-            start.assert_called_once_with(sync=False, setup=True)
-            start.reset_mock()
-            window.sync_and_view()
-            start.assert_called_once_with(sync=True)
+            start.assert_called_once_with(sync=False, setup=True, manager=manager)
 
     def test_invalid_mumu_folder_is_not_saved(self) -> None:
         window = ReviewWindow.__new__(ReviewWindow)
         window.root = Mock()
         window.status = Mock()
         window.job = None
-        with patch('src.desktop.discover_mumu_manager', return_value=None), \
-                patch('src.desktop.messagebox.askyesnocancel', return_value=True), \
-                patch('src.desktop.filedialog.askdirectory', return_value=str(Path.cwd())), \
-                patch('src.desktop.manager_in_location', return_value=None), \
-                patch('src.desktop.remember_mumu_manager') as remember, \
-                patch('src.desktop.messagebox.showwarning') as showwarning, \
+        window.mumu = MumuDialogs(window.root, window.status.set)
+        with patch('src.desktop_mumu.discover_mumu_manager', return_value=None), \
+                patch('src.desktop_mumu.messagebox.askyesnocancel', return_value=True), \
+                patch('src.desktop_mumu.filedialog.askdirectory', return_value=str(Path.cwd())), \
+                patch('src.desktop_mumu.manager_in_location', return_value=None), \
+                patch('src.desktop_mumu.remember_mumu_manager') as remember, \
+                patch('src.desktop_mumu.messagebox.showwarning') as showwarning, \
                 patch.object(window, 'start_export') as start:
             window.sync_and_view()
             remember.assert_not_called()
@@ -115,12 +120,13 @@ class DesktopTests(unittest.TestCase):
         window.root = Mock()
         window.job = None
         window.status = Mock()
+        window.mumu = MumuDialogs(window.root, window.status.set)
         with patch('src.desktop.ExportJob') as job, patch.object(window, 'set_busy'), \
                 patch.object(window, 'clear_preview') as clear_preview:
             window.start_export(sync=False, setup=True)
-            job.assert_called_once_with(sync=False, setup=True)
+            job.assert_called_once_with(sync=False, setup=True, manager=None)
             clear_preview.assert_not_called()
-        with patch('src.desktop.messagebox.showinfo') as popup:
+        with patch('src.desktop_mumu.messagebox.showinfo') as popup:
             window.show_result(ExportJobResult('configured', False, message='连接已就绪。', setup=True))
             self.assertEqual(popup.call_args.args[0], '配置完成')
             self.assertIn('查看已有复习', popup.call_args.args[1])
@@ -131,9 +137,39 @@ class DesktopTests(unittest.TestCase):
         window = ReviewWindow.__new__(ReviewWindow)
         window.root = Mock()
         window.status = Mock()
-        with patch('src.desktop.messagebox.showwarning') as popup:
+        window.mumu = MumuDialogs(window.root, window.status.set)
+        with patch('src.desktop_mumu.messagebox.showwarning') as popup:
             window.show_result(ExportJobResult('error', False, message='请先安装不背单词。', setup=True))
         popup.assert_called_once_with('MuMu 配置未完成', '请先安装不背单词。', parent=window.root)
+
+    def test_app_missing_retry_reuses_automatically_found_manager_after_restart(self) -> None:
+        with TemporaryDirectory() as folder:
+            profile = Path(folder).resolve()
+            manager = profile / 'MuMuManager.exe'
+            manager.touch()
+            first = MumuDialogs(Mock(), Mock())
+            with patch('src.mumu_installation.data_directory', return_value=profile), \
+                    patch('src.mumu_installation._default_locations', side_effect=[[manager], []]) as defaults, \
+                    patch('src.desktop_mumu.messagebox.showwarning') as warning, \
+                    patch('src.desktop_mumu.messagebox.askyesnocancel') as prompt:
+                self.assertEqual(first.select_manager(), manager)
+                result = parse_result(3, '{"status":"app_missing","message":"同一实例内安装"}',
+                                      sync=False, setup=True)
+                first.show_result(result)
+                self.assertIn('请安装不背单词', warning.call_args.args[0])
+                self.assertEqual(first.select_manager(), manager)
+                restarted = MumuDialogs(Mock(), Mock())
+                self.assertEqual(restarted.select_manager(), manager)
+                defaults.assert_called_once()
+                prompt.assert_not_called()
+
+    def test_worker_passes_selected_manager_path_to_setup_and_sync(self) -> None:
+        manager = Path.cwd() / '自定义 安装' / 'MuMuManager.exe'
+        for sync, setup in ((True, False), (False, True)):
+            with self.subTest(sync=sync, setup=setup), patch('src.desktop_worker.subprocess.Popen') as run:
+                job = ExportJob(sync=sync, setup=setup, manager=manager)
+                self.addCleanup(job.cleanup)
+                self.assertEqual(run.call_args.args[0][-2:], ['--mumu-manager', str(manager)])
 
     def test_folder_picker_updates_directory_and_refreshes_preview(self) -> None:
         window = ReviewWindow.__new__(ReviewWindow)

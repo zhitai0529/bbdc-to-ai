@@ -5,13 +5,22 @@ import unittest
 from unittest.mock import Mock, call, patch
 
 from src.desktop_worker import ExportJob, parse_result
-from src.mumu_setup import configure_mumu
-from src.mumu_sync import SyncError
+from src.mumu_connection import AppNotInstalled, MumuNotFound, SyncError
+from src.mumu_setup import configure_mumu, main
 
 
 class MumuSetupTests(unittest.TestCase):
     manager = Path('MuMuManager.exe')
     setting = (manager, 'setting', '--vmindex', '2', '--key', 'root_permission')
+
+    def test_worker_routes_dependency_errors_by_status(self) -> None:
+        for error, status, code in ((AppNotInstalled('安装不背单词'), 'app_missing', 3),
+                                    (MumuNotFound('找不到 MuMu'), 'mumu_missing', 4)):
+            with self.subTest(status=status), patch('src.mumu_setup.configure_mumu', side_effect=error) as setup, \
+                    patch('builtins.print') as output:
+                self.assertEqual(main(['--json', '--mumu-manager', str(self.manager)]), code)
+                self.assertIn(f'"status": "{status}"', output.call_args.args[0])
+                setup.assert_called_once_with(None, manager=self.manager)
 
     def test_root_disabled_on_running_instance_restarts_only_selected_instance(self) -> None:
         with TemporaryDirectory() as temp, patch('src.mumu_setup.select_mumu') as select, \

@@ -12,14 +12,14 @@ import time
 from filelock import FileLock
 
 from src.config import load_config
+from src.mumu_connection import AppNotInstalled, MumuNotFound, SyncError, connect_mumu, run_manager, select_mumu
 from src.mumu_snapshot import read_protocol
-from src.mumu_sync import SyncError, connect_mumu, run_manager, select_mumu
 
 ROOT_KEY = 'root_permission'
 
 
-def configure_mumu(session: Path | None = None) -> str:
-    manager, index, instance = select_mumu()
+def configure_mumu(session: Path | None = None, *, manager: Path | None = None) -> str:
+    manager, index, instance = select_mumu(manager=manager)
     android_version = str(instance.get('android_version', '')).split('.', 1)[0]
     if android_version and android_version != '15':
         raise SyncError('一键配置目前支持 MuMu Android 15。请打开 Android 15 实例后重试。')
@@ -71,19 +71,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description='配置并检查 MuMu 同步环境')
     parser.add_argument('--json', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--scratch-dir', type=Path, help=argparse.SUPPRESS)
+    parser.add_argument('--mumu-manager', type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     try:
-        message = configure_mumu(args.scratch_dir)
+        message = configure_mumu(args.scratch_dir, manager=args.mumu_manager)
+    except (AppNotInstalled, MumuNotFound) as exc:
+        status, message, exit_code = exc.status, str(exc), exc.exit_code
     except (OSError, ValueError, RuntimeError, TimeoutExpired, KeyError) as exc:
-        status = 'error'
+        status, exit_code = 'error', 1
         message = str(exc) or '配置失败。请确认已安装 MuMu 和受支持的不背单词版本。'
     else:
-        status = 'configured'
+        status, exit_code = 'configured', 0
     if args.json:
         print(json.dumps({'status': status, 'message': message}, ensure_ascii=False))
     else:
         print(message)
-    return 0 if status == 'configured' else 1
+    return exit_code
 
 
 if __name__ == '__main__':
