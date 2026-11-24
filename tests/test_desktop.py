@@ -16,6 +16,15 @@ from src.pipeline import process_payload
 
 
 class DesktopTests(unittest.TestCase):
+    def test_open_folder_opens_current_export_directory(self) -> None:
+        with TemporaryDirectory() as folder:
+            window = ReviewWindow.__new__(ReviewWindow)
+            window.output_dir = Path(folder) / '复习文件'
+            with patch('src.desktop.os.startfile', create=True) as explorer:
+                window.open_folder()
+            self.assertTrue(window.output_dir.is_dir())
+            explorer.assert_called_once_with(window.output_dir)
+
     def test_startup_and_legacy_view_flag_only_schedule_local_preview(self) -> None:
         for args in ([], ['--open-latest']):
             with self.subTest(args=args), patch('src.desktop.tk.Tk') as tk, patch('src.desktop.ReviewWindow') as window:

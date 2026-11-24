@@ -51,12 +51,12 @@ class MumuSyncTests(unittest.TestCase):
             device.shell.return_value = 'package:/data/app/base.apk'
             stop = Mock()
             with patch('src.mumu_sync.manager_path', return_value=manager), \
-                    patch('src.mumu_sync.run_manager', side_effect=[{'3': started}, started, {}]) as run, \
+                    patch('src.mumu_sync.run_manager', side_effect=[{'3': started}, {}]) as run, \
                     patch('src.mumu_sync.Adb', return_value=device):
                 self.assertIs(open_mumu(session), device)
                 cancel_mumu_sync(session, stop)
             stop.assert_called_once_with()
-            self.assertEqual(run.call_count, 3)
+            self.assertEqual(run.call_count, 2)
             self.assertFalse((session / 'mumu-instance').exists())
 
     def test_cancel_before_launch_prevents_startup(self) -> None:
@@ -132,3 +132,12 @@ class MumuSyncTests(unittest.TestCase):
             with self.assertRaisesRegex(SyncError, '同步失败'):
                 sync_learning_records(adb)
         self.assertEqual(adb.run.call_count, 1)
+
+    def test_retries_navigation_control_if_the_page_did_not_change(self) -> None:
+        adb = Mock()
+        profile = [node('myHeadPhoto_container')]
+        screens = [profile, profile, [node('sync_learn_data')], [node(text='数据同步成功')]]
+        with patch('src.mumu_sync.read_screen', side_effect=screens), \
+                patch('src.mumu_sync.time.monotonic', side_effect=range(0, 100, 2)):
+            sync_learning_records(adb)
+        self.assertEqual(adb.run.call_count, 3)

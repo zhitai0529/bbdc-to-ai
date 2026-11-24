@@ -12,6 +12,7 @@ import shutil
 import subprocess
 
 PACKAGE = 'cn.com.langeasy.LangEasyLexis'
+NO_CONSOLE = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 
 class Adb:
@@ -26,22 +27,24 @@ class Adb:
         self.serial = serial or ''
         self._use_su = False
         if serial:
-            subprocess.run([self.executable, 'connect', serial], capture_output=True, timeout=15)
+            self._connect(serial)
         else:
             manager = base.parent / 'nx_main/MuMuManager.exe'
             managed_addresses: set[str] = set()
             if manager.is_file():
-                info = subprocess.run([str(manager), 'info', '-v', 'all'], capture_output=True, timeout=15)
+                info = subprocess.run([str(manager), 'info', '-v', 'all'], capture_output=True,
+                                      timeout=15, creationflags=NO_CONSOLE)
                 try:
                     instances = json.loads(info.stdout.decode('utf-8-sig'))
                     for instance in instances.values():
                         if instance.get('is_android_started') and instance.get('adb_port'):
                             address = f"{instance.get('adb_host_ip', '127.0.0.1')}:{instance['adb_port']}"
                             managed_addresses.add(address)
-                            subprocess.run([self.executable, 'connect', address], capture_output=True, timeout=15)
+                            self._connect(address)
                 except (ValueError, AttributeError):
                     pass
-            devices = subprocess.check_output([self.executable, 'devices'], timeout=15).decode()
+            devices = subprocess.check_output([self.executable, 'devices'], timeout=15,
+                                              creationflags=NO_CONSOLE).decode()
             ready = re.findall(r'^([^\s]+)\s+device\s*$', devices, re.M)
             # MuMu can expose the same instance via its manager address and an emulator-* alias.
             candidates = [address for address in ready if address in managed_addresses] if managed_addresses else ready
@@ -49,8 +52,13 @@ class Adb:
                 raise ValueError('请先打开 MuMu；设备不唯一时通过 --serial 指定 ADB 地址')
             self.serial = candidates[0]
 
+    def _connect(self, serial: str) -> None:
+        subprocess.run([self.executable, 'connect', serial], capture_output=True,
+                       timeout=15, creationflags=NO_CONSOLE)
+
     def run(self, *args: str, timeout: int = 30) -> bytes:
-        result = subprocess.run([self.executable, '-s', self.serial, *args], capture_output=True, timeout=timeout)
+        result = subprocess.run([self.executable, '-s', self.serial, *args], capture_output=True,
+                                timeout=timeout, creationflags=NO_CONSOLE)
         if result.returncode:
             raise RuntimeError(f'ADB {args[0]} 失败，退出码 {result.returncode}')
         return result.stdout
@@ -61,7 +69,7 @@ class Adb:
     def require_root(self) -> None:
         if 'uid=0(' not in self.shell('id'):
             self.run('root')
-            subprocess.run([self.executable, 'connect', self.serial], capture_output=True, timeout=15)
+            self._connect(self.serial)
             self.run('wait-for-device')
         if 'uid=0(' not in self.shell('id'):
             raise RuntimeError('需要 MuMu 的 root 权限和 adb root；未修改 root 开关')
@@ -83,10 +91,22 @@ class Adb:
             raise PermissionError(message)
         self._use_su = True
 
-    def _database_shell(self, command: str) -> bytes:
+    def _database_shell(self, command: str, *, timeout: int = 30) -> bytes:
         if self._use_su:
             command = 'su -c ' + shlex.quote(command)
-        return self.run('shell', '-T', command)
+        return self.run('shell', '-T', command, timeout=timeout)
+
+    def dictionary_sha256(self) -> str | None:
+        path = f'/data/user/0/{PACKAGE}/databases/simple.db'
+        clean = f'test ! -s {path}-wal && test ! -s {path}-journal'
+        try:
+            reply = self._database_shell(f'{clean} && sha256sum {path} && {clean}', timeout=8)
+        except (RuntimeError, subprocess.TimeoutExpired):
+            return None
+        pieces = reply.split(maxsplit=1)
+        if pieces and re.fullmatch(rb'[0-9a-f]{64}', pieces[0]):
+            return pieces[0].decode('ascii')
+        return None
 
     def _read_database(self, path: str) -> bytes:
         if not self._use_su:

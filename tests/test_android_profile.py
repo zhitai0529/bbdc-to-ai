@@ -180,7 +180,7 @@ class AndroidProfileTests(unittest.TestCase):
         undated['ut'] = None
         rows = [record('historical', 'B', '110'), current, undated]
         with patch('src.mumu.initialize_protocol', return_value={'db_key': 'test', 'dict_key': 'test'}), \
-                patch('src.mumu.copy_database'), patch('src.mumu.add_meanings'), \
+                patch('src.mumu.copy_database'), patch('src.mumu.enrich_meanings'), \
                 patch('src.mumu.read_learning_rows', return_value=rows):
             output = export_snapshot(Mock(), self.config, target, announce=False)
         self.assertEqual(output.name, '2026-11-20_bbdc_review.md')
@@ -197,7 +197,7 @@ class AndroidProfileTests(unittest.TestCase):
         easy = record('new easy', '0', '0')
         easy.update(ut='2026-11-20 15:01:00', lt='20261120150100')
         with patch('src.mumu.initialize_protocol', return_value={'db_key': 'test', 'dict_key': 'test'}), \
-                patch('src.mumu.copy_database'), patch('src.mumu.add_meanings'), \
+                patch('src.mumu.copy_database'), patch('src.mumu.enrich_meanings'), \
                 patch('src.mumu.read_learning_rows', side_effect=[[first], [first, second, easy], [first, second, easy]]):
             initial = export_study_day(Mock(), self.config, target, announce=False)
             updated = export_study_day(Mock(), self.config, target, announce=False)
@@ -252,6 +252,27 @@ class AndroidProfileTests(unittest.TestCase):
             self.assertTrue(all(args[0:2] == ('shell', '-T') for args in reads))
             self.assertTrue(all(args[2].startswith("su -c 'wc -c < /data/user/0/") for args in reads))
             adb_root.assert_not_called()
+
+    def test_adb_connection_and_commands_hide_console_on_windows(self) -> None:
+        executable = self.folder / 'adb.exe'
+        executable.touch()
+        with patch('src.mumu_adb.NO_CONSOLE', 0x08000000), \
+                patch('src.mumu_adb.subprocess.run', return_value=Mock(returncode=0, stdout=b'ok')) as run:
+            adb = Adb(str(executable), '127.0.0.1:16416')
+            self.assertEqual(adb.run('shell', 'true'), b'ok')
+            self.assertEqual(run.call_count, 2)
+            self.assertTrue(all(call.kwargs['creationflags'] == 0x08000000 for call in run.call_args_list))
+
+    def test_dictionary_digest_checks_for_unmerged_writes(self) -> None:
+        adb = object.__new__(Adb)
+        digest = 'a' * 64
+        with patch.object(adb, '_database_shell', side_effect=[f'{digest}  /file'.encode(),
+                                                              RuntimeError('still writing')]) as shell:
+            self.assertEqual(adb.dictionary_sha256(), digest)
+            self.assertIsNone(adb.dictionary_sha256())
+            command = shell.call_args.args[0]
+            self.assertEqual(command.count('-wal'), 2)
+            self.assertEqual(command.count('-journal'), 2)
 
     def test_missing_database_is_reported_before_the_binary_read(self) -> None:
         adb = object.__new__(Adb)

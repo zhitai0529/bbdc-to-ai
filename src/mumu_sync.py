@@ -77,10 +77,13 @@ def open_mumu(session: Path | None = None) -> Adb:
         raise SyncError('请保留一个要同步的 MuMu 实例，再点「查看已有复习」。')
     instance = choices[0]
     index = str(instance['index'])
+    state = instance
     launch_requested = False
     deadline = time.monotonic() + 90
-    while time.monotonic() < deadline:
+    if not state.get('is_android_started') or not state.get('adb_port'):
+        # Recheck before claiming ownership of an instance that may be starting.
         state = run_manager(manager, 'info', '-v', index)
+    while time.monotonic() < deadline:
         if not state.get('is_process_started') and not launch_requested:
             if session is not None:
                 launch_mumu(manager, index, session)
@@ -100,6 +103,7 @@ def open_mumu(session: Path | None = None) -> Adb:
                 run_manager(manager, 'control', '-v', index, 'app', 'launch', '-pkg', PACKAGE)
                 return adb
         time.sleep(1)
+        state = run_manager(manager, 'info', '-v', index)
     raise SyncError('MuMu 启动超时。请稍后再点「查看已有复习」。')
 
 
@@ -151,7 +155,7 @@ def scroll_preferences(adb: Adb, nodes: list[ET.Element], page: str) -> bool:
 
 def sync_learning_records(adb: Adb) -> None:
     deadline = time.monotonic() + 45
-    clicked: set[str] = set()
+    last_tap: dict[str, float] = {}
     swipes = {'learning': 0, 'profile': 0}
     requested = False
     while time.monotonic() < deadline:
@@ -178,11 +182,17 @@ def sync_learning_records(adb: Adb) -> None:
 
         for item in ('sync_learn_data', 'more_learn_settings', 'cell_learn_settings', 'myHeadPhoto_container'):
             node = control(nodes, item)
-            if node is not None and item not in clicked:
-                tap(adb, node)
-                clicked.add(item)
-                requested = item == 'sync_learn_data'
+            if node is None:
+                continue
+            now = time.monotonic()
+            if item in last_tap and now - last_tap[item] < 2:
                 break
+            tap(adb, node)
+            last_tap[item] = now
+            if item == 'sync_learn_data':
+                requested = True
+                deadline = time.monotonic() + 45
+            break
         else:
             if '学习偏好' in labels and '学习节奏' in labels:
                 page = 'learning'

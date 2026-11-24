@@ -22,7 +22,7 @@ class ReviewWindow(ReviewView):
         self.content = ''
         root.protocol('WM_DELETE_WINDOW', self.close)
         super().__init__(root, self.output_dir, ReviewActions(
-            sync=self.sync_and_view, export=self.export, preview_saved=self.open_latest, copy=self.copy,
+            sync=self.sync_and_view, export=self.export, copy=self.copy,
             change_folder=self.change_folder, open_folder=self.open_folder,
         ))
 

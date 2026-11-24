@@ -23,7 +23,6 @@ FONT = 'Microsoft YaHei UI'
 class ReviewActions:
     sync: Callable[[], None]
     export: Callable[[], None]
-    preview_saved: Callable[[], object]
     copy: Callable[[], None]
     change_folder: Callable[[], None]
     open_folder: Callable[[], None]
@@ -115,7 +114,7 @@ class ReviewView:
         self.open_button = self._action(sidebar, '查看已有复习', '打开 MuMu 并同步学习记录',
                                         actions.sync, primary=True)
         self.export_button = self._action(sidebar, '导出今日复习', '用本机已有记录生成文件', actions.export)
-        self.saved_button = self._action(sidebar, '仅看本地文件', '直接打开最近导出的复习', actions.preview_saved)
+        self.saved_button = self._action(sidebar, '仅看本地文件', '在资源管理器打开导出目录', actions.open_folder)
 
         location = tk.Frame(sidebar, background=PANEL)
         location.pack(side='bottom', fill='x', pady=(12, 0))
@@ -124,13 +123,9 @@ class ReviewView:
         self.location_text = tk.StringVar(sidebar, value=str(output_dir))
         ttk.Entry(location, textvariable=self.location_text, state='readonly', width=24,
                   font=(FONT, 9), style='Review.TEntry').pack(fill='x', pady=(0, 8))
-        folders = tk.Frame(location, background=PANEL)
-        folders.pack(fill='x')
-        self.change_button = ttk.Button(folders, text='更改保存位置', command=actions.change_folder,
+        self.change_button = ttk.Button(location, text='更改保存位置', command=actions.change_folder,
                                         style='Compact.Review.TButton')
-        self.change_button.pack(side='left', fill='x', expand=True, padx=(0, 6))
-        ttk.Button(folders, text='打开保存位置', command=actions.open_folder,
-                   style='Compact.Review.TButton').pack(side='left', fill='x', expand=True)
+        self.change_button.pack(fill='x')
 
     def _action(self, parent: tk.Frame, title: str, help_text: str, command: Callable[[], object],
                 *, primary: bool = False) -> ttk.Button:
@@ -195,7 +190,7 @@ class ReviewView:
 
     def set_busy(self, busy: bool) -> None:
         state = 'disabled' if busy else 'normal'
-        for button in (self.export_button, self.open_button, self.saved_button, self.change_button):
+        for button in (self.export_button, self.open_button, self.change_button):
             button.configure(state=state)
         if busy:
             self.progress.pack(side='right', padx=(12, 0))

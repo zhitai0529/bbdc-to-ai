@@ -15,7 +15,7 @@ from rich.console import Console
 from src.bbdc_schema import meaning_text, study_date
 from src.config import Config, load_config
 from src.mumu_adb import Adb, PACKAGE as PACKAGE
-from src.mumu_snapshot import add_meanings, copy_database, read_learning_rows, read_protocol
+from src.mumu_snapshot import copy_database, enrich_meanings, read_learning_rows, read_protocol
 from src.mumu_snapshot import snapshot_rows as snapshot_rows
 from src.parser import parse_time
 from src.pipeline import process_payload
@@ -42,9 +42,7 @@ class SnapshotExport:
 
 
 def initialize_protocol(adb: Adb, config: Config) -> dict[str, Any]:
-    protocol = read_protocol(adb)
-    write_json(config.root / '.local_setup/protocol.json', protocol)
-    return protocol
+    return read_protocol(adb, config.root / '.local_setup/protocol.json')
 
 
 def select_day(rows: list[dict[str, Any]], config: Config, now: datetime,
@@ -75,8 +73,8 @@ def export_study_day(adb: Adb, config: Config, target: date | None = None, lates
         database = copy_database(adb, 'LangEasyLexis.db', protocol['db_key'], 2, folder)
         rows = read_learning_rows(database)
         day, selected = select_day(rows, config, now, target, latest)
-        dictionary = copy_database(adb, 'simple.db', protocol['dict_key'], 4, folder)
-        add_meanings(rows, dictionary)
+        enrich_meanings(adb, rows, protocol['dict_key'], folder,
+                        config.root / '.local_setup/dictionary-lookups.json')
     write_json(config.state_dir / 'dictionary.json',
                {row['wd'].casefold(): meaning_text(row['meaning']) for row in rows if row['meaning']})
     if announce and target is None and day != study_date(now):
