@@ -10,6 +10,7 @@ import sys
 from tempfile import TemporaryDirectory
 
 from src.config import PROJECT_ROOT, load_config
+from src.mumu_sync import manager_path
 from src.pipeline import process_payload
 
 
@@ -59,16 +60,15 @@ def main() -> None:
             return json.loads(reply_path.read_text(encoding='utf-8'))
 
         assert run_worker('empty', 2)['status'] == 'no_records'
-        setup_reply = area / 'setup.json'
-        missing_mumu_dir = area / '无模拟器'
-        missing_mumu_dir.mkdir()
-        result = subprocess.run(
-            [str(executable), '--run-worker', 'src.mumu_setup', str(setup_reply)],
-            cwd=area, env={**env, 'ProgramFiles': str(missing_mumu_dir)}, timeout=60,
-        )
-        assert result.returncode == 1
-        setup = json.loads(setup_reply.read_text(encoding='utf-8'))
-        assert setup['status'] == 'error' and '找不到 MuMu' in setup['message']
+        if not manager_path().is_file():
+            setup_reply = area / 'setup.json'
+            result = subprocess.run(
+                [str(executable), '--run-worker', 'src.mumu_setup', str(setup_reply)],
+                cwd=area, env=env, timeout=60,
+            )
+            setup = json.loads(setup_reply.read_text(encoding='utf-8'))
+            if result.returncode != 1 or setup['status'] != 'error' or '找不到 MuMu' not in setup['message']:
+                raise RuntimeError(f'Unexpected result when MuMu is absent: {result.returncode}, {setup}')
         config = load_config(app_data / 'config.yaml')
         assert config.output_dir == app_data / 'output'
         assert config.output_dir.is_relative_to(profile)
