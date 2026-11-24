@@ -43,12 +43,18 @@ class _OverviewState extends State<Overview> {
       Icons.replay_rounded,
     ];
     final yesterday = rows[offsetDay(day, -1)];
+    final fromExport = stats?['export_summary'] == true;
+    final includesExports = rows.values.any(
+      (row) => row['export_summary'] == true,
+    );
+    final promoted = stats?['promoted'] as num?;
+    final previousPromoted = yesterday?['promoted'] as num?;
     final metrics = List<Widget>.generate(4, (i) {
       final key = keys[i], v = stats?[key], y = yesterday?[key];
       String signed(num n) => n > 0 ? '+$n' : '$n';
       final delta = (v == null || y == null)
           ? '较昨日　暂无对比'
-          : '较昨日　${signed(v - y)}${i == 3 ? ' / ${signed(stats!['promoted'] - yesterday!['promoted'])}' : ''}';
+          : '较昨日　${signed(v - y)}${i == 3 ? ' / ${promoted == null || previousPromoted == null ? '—' : signed(promoted - previousPromoted)}' : ''}';
       return Card.filled(
         margin: EdgeInsets.zero,
         color: Color.alphaBlend(
@@ -77,7 +83,7 @@ class _OverviewState extends State<Overview> {
                 v == null
                     ? '—'
                     : i == 3
-                    ? '$v / ${stats!['promoted']}'
+                    ? '$v / ${promoted ?? '—'}'
                     : '$v',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontFeatures: [const FontFeature.tabularFigures()],
@@ -150,7 +156,7 @@ class _OverviewState extends State<Overview> {
       '高频错词速览',
       Icons.format_list_numbered,
       errors.isEmpty
-          ? const Empty('当日暂无顽固词记录')
+          ? Empty(fromExport ? '词表见「复习预览」' : '当日暂无顽固词记录')
           : Column(
               children: [
                 for (var i = 0; i < errors.length && i < 5; i++)
@@ -230,6 +236,16 @@ class _OverviewState extends State<Overview> {
                   ),
               ],
             ),
+            if (includesExports)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  fromExport
+                      ? '当日统计来自已导出的 Markdown。'
+                      : '部分历史日期的统计来自已导出的 Markdown。',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             const SizedBox(height: 16),
             pair(trend, top),
             const SizedBox(height: 14),

@@ -9,6 +9,8 @@ from src.bbdc_schema import study_date
 from src.config import load_config
 from src.dashboard import DashboardAPI
 from src.dashboard_data import dashboard, review_path
+from src.exporter import export_review
+from src.parser import WordRecord
 from src.pipeline import process_payload
 from src.runtime import PROJECT_ROOT
 
@@ -57,6 +59,50 @@ class DashboardTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.api.save_prompt(self.day.isoformat(), '# 旧复习', '# 过时编辑')
         self.assertEqual(path.read_text(encoding='utf-8'), '# 修订')
+
+    def test_older_exports_fill_dashboard_without_creating_word_history(self):
+        yesterday = self.day - timedelta(days=1)
+        earlier = self.day - timedelta(days=2)
+        self.populate(self.day, [('repeat', '110', 'B')])
+        # Simulate an older version writing to the same output folder, from another profile.
+        old = export_review([
+            WordRecord('repeat', level='hard'),
+            WordRecord('known', level='mastered', source='bbdc-android-5.11.8', raw_rating='0'),
+        ], self.config.output_dir, yesterday)
+        legacy = (PROJECT_ROOT / 'examples/synthetic_review.md').read_text(encoding='utf-8')
+        review_path(self.config.output_dir, earlier).write_text(
+            legacy.replace('2026-11-12', earlier.isoformat()), encoding='utf-8-sig')
+        original_history = self.config.history_path.read_bytes()
+        original_export = old.read_bytes()
+        current = dashboard(self.config)
+        self.assertEqual([(row['day'], row['total']) for row in current['series']],
+                         [(earlier.isoformat(), 4), (yesterday.isoformat(), 2), (self.day.isoformat(), 1)])
+        self.assertIsNone(current['series'][0]['promoted'])
+        self.assertEqual(current['stats']['promoted'], 0)
+        self.assertEqual(current['repeats'], [])
+        previous = dashboard(self.config, yesterday.isoformat())
+        self.assertTrue(previous['stats']['export_summary'])
+        self.assertEqual(previous['stats']['mastered'], 1)
+        self.assertEqual(previous['sidebar']['total'], 1)
+        self.assertIsNone(previous['stats']['latest'])
+        self.assertIn('复习 Prompt', previous['prompt'])
+        self.assertEqual(self.config.history_path.read_bytes(), original_history)
+        self.assertEqual(old.read_bytes(), original_export)
+
+    def test_dashboard_prefers_recorded_history_and_ignores_inconsistent_export(self):
+        yesterday = self.day - timedelta(days=1)
+        earlier = self.day - timedelta(days=2)
+        self.populate(yesterday, [('valid', '110', 'B')])
+        export_review([WordRecord('obsolete', level='hard')] * 2, self.config.output_dir, yesterday)
+        path = export_review([WordRecord('unconfirmed')], self.config.output_dir, earlier)
+        path.write_text(path.read_text(encoding='utf-8').replace('顽固词：0 个', '顽固词：2 个'),
+                        encoding='utf-8')
+        current = dashboard(self.config)
+        self.assertEqual([(row['day'], row['total']) for row in current['series']], [(yesterday.isoformat(), 1)])
+        self.assertIn(earlier.isoformat(), current['dates'])
+        invalid = dashboard(self.config, earlier.isoformat())
+        self.assertIsNone(invalid['stats'])
+        self.assertIn('复习 Prompt', invalid['prompt'])
 
     def test_offline_startup_and_cancellation(self):
         with patch('src.dashboard.discover_mumu_manager') as discover, patch('src.dashboard.ExportJob') as worker:

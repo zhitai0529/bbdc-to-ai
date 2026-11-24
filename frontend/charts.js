@@ -235,7 +235,7 @@ export function overview(data) {
     const val = node("div"),
       qty = current
         ? key === "fuzzy"
-          ? current.fuzzy + " / " + current.promoted
+          ? current.fuzzy + " / " + (current.promoted ?? "—")
           : current[key]
         : "—";
     val.append(
@@ -250,7 +250,9 @@ export function overview(data) {
         "较昨日　" +
         delta(current[key] - previous[key]) +
         (key === "fuzzy"
-          ? " / " + delta(current.promoted - previous.promoted)
+          ? " / " + (current.promoted == null || previous.promoted == null
+            ? "—"
+            : delta(current.promoted - previous.promoted))
           : "") +
         " 个";
     const spark = node("div", undefined, "spark"),

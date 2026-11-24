@@ -164,7 +164,7 @@ function preview() {
       ["模糊词", stats.fuzzy],
       ["自动提级", stats.promoted],
     ])
-      pills.append(node("span", name + " " + n));
+      pills.append(node("span", name + " " + (n ?? "—")));
   if (drafts.has(draftKey())) pills.append(node("span", "有未保存的修改"));
 }
 function renderView() {
@@ -182,7 +182,10 @@ function renderView() {
     else button.removeAttribute("aria-current");
   }
   if (!data) return;
-  if (view === "overview") overview(data);
+  if (view === "overview") {
+    overview(data);
+    byId("exportSummary").hidden = !data.series.some((r) => r.export_summary);
+  }
   if (view === "preview") preview();
   if (view === "history") {
     byId("windowDays").textContent =
@@ -201,7 +204,7 @@ function renderView() {
         r.wrong,
         r.promoted ? "跨天自动提级" : "基础顽固词",
       ]),
-      "当日暂无顽固词记录。",
+      data.stats?.export_summary ? "当日词表见「复习预览」。" : "当日暂无顽固词记录。",
     );
     table(
       "codes",

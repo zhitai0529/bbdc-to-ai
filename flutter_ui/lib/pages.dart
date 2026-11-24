@@ -84,7 +84,7 @@ class _ReviewPageState extends State<ReviewPage> {
                   ('模糊词', 'fuzzy'),
                   ('自动提级', 'promoted'),
                 ])
-                  Chip(label: Text('${pair.$1} ${stats[pair.$2]}')),
+                  Chip(label: Text('${pair.$1} ${stats[pair.$2] ?? '—'}')),
             ],
           ),
           const SizedBox(height: 14),
@@ -151,6 +151,7 @@ class HistoryPage extends StatelessWidget {
     final repeats = (data['repeats'] as List).cast<Json>(),
         hard = (data['errors'] as List).cast<Json>(),
         codes = (data['unknown'] as List).cast<Json>();
+    final fromExport = data['stats']?['export_summary'] == true;
     Widget table(
       List<String> headings,
       List<List<Object?>> rows,
@@ -207,7 +208,7 @@ class HistoryPage extends StatelessWidget {
                   r['promoted'] == true ? '跨天自动提级' : '基础顽固词',
                 ],
             ],
-            '当日暂无顽固词记录。',
+            fromExport ? '当日词表见「复习预览」。' : '当日暂无顽固词记录。',
           ),
         ),
         const SizedBox(height: 14),

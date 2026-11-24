@@ -10,6 +10,7 @@ from typing import Any
 
 from src.bbdc_schema import study_date
 from src.config import Config
+from src.export_summary import read_export_summary
 from src.history import count_prior_days
 from src.parser import WordRecord, collect_unknown_codes
 from src.pipeline import escalate
@@ -58,11 +59,15 @@ def _snapshot(config: Config, selection: str | None, *, use_history: bool) -> di
     today = study_date(datetime.now(config.timezone))
     day = date.fromisoformat(selection) if selection else today
     dates = {today.isoformat(), day.isoformat()}
+    exports: dict[date, Path] = {}
     for path in config.output_dir.glob('????-??-??_bbdc_review.md'):
         try:
-            dates.add(date.fromisoformat(path.name[:10]).isoformat())
+            exported_day = date.fromisoformat(path.name[:10])
         except ValueError:
             continue
+        if path.is_file():
+            exports[exported_day] = path
+            dates.add(exported_day.isoformat())
     series: list[dict] = []
     repeats: list[dict] = []
     stored: list[WordRecord] = []
@@ -111,16 +116,38 @@ def _snapshot(config: Config, selection: str | None, *, use_history: bool) -> di
                     examples='、'.join(w.spelling for w in group[:5]))
                for (ah, rh, rating), group in sorted(collect_unknown_codes(words).items(),
                                                      key=lambda pair: -len(pair[1]))]
-    path = review_path(config.output_dir, day)
     try:
-        prompt = path.read_text(encoding='utf-8-sig')
+        prompt = review_path(config.output_dir, day).read_text(encoding='utf-8-sig')
     except FileNotFoundError:
         prompt = None
     except (OSError, UnicodeError) as exc:
         prompt = None
         warning = f'{warning} 复习文件暂时无法读取。{exc}'.strip()
+    rows_by_day = {row['day']: row for row in series}
+    first_visible = date.fromordinal(max(1, day.toordinal() - 167))
+    # Keep the exported summaries in the view model. They cannot restore the
+    # omitted words or the original categories needed by the history database.
+    for exported_day, path in exports.items():
+        key = exported_day.isoformat()
+        if key in rows_by_day or (not first_visible <= exported_day <= day and exported_day != today):
+            continue
+        try:
+            if exported_day == day:
+                header = prompt[:64 * 1024] if prompt is not None else ''
+            else:
+                with path.open(encoding='utf-8-sig') as stream:
+                    header = stream.read(64 * 1024)
+        except (OSError, UnicodeError):
+            continue
+        if summary := read_export_summary(header, exported_day):
+            if exported_day == today:
+                latest = sidebar['latest'] if sidebar else None
+                sidebar = {**summary, 'latest': latest}
+            if first_visible <= exported_day <= day:
+                rows_by_day[key] = summary
     return dict(version=VERSION, today=today.isoformat(), day=day.isoformat(), dates=sorted(dates, reverse=True),
-                series=series, stats=stats if words else None, errors=errors, repeats=repeats, unknown=unknown,
+                series=[rows_by_day[key] for key in sorted(rows_by_day)], stats=rows_by_day.get(day.isoformat()),
+                errors=errors, repeats=repeats, unknown=unknown,
                 codes_available=bool(cached), window=config.escalation_window_days, warning=warning,
                 sidebar=stats if day == today and words else dict(sidebar) if sidebar else None,
                 prompt=prompt, folder=str(config.output_dir))

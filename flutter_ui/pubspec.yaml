@@ -1,7 +1,7 @@
 name: review_ui
 description: Native Windows Material 3 frontend for bbdc-to-ai.
 publish_to: none
-version: 1.4.1+1
+version: 1.4.2+1
 environment:
   sdk: ">=3.10.0 <4.0.0"
 dependencies:

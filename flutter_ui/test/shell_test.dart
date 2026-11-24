@@ -110,7 +110,20 @@ void main() {
         calls.add(method);
         switch (method) {
           case 'initialize':
-            return {'data': sample('2026-11-24'), 'export': false};
+            final today = sample('2026-11-24');
+            today['series'] = [
+              {
+                'day': '2026-11-23',
+                'total': 5,
+                'hard': 2,
+                'fuzzy': 2,
+                'mastered': 1,
+                'promoted': null,
+                'export_summary': true,
+              },
+              ...today['series'] as List,
+            ];
+            return {'data': today, 'export': false};
           case 'start':
             expect(args, ['export']);
             return {'status': 'started', 'message': ''};
@@ -134,6 +147,8 @@ void main() {
       await tester.pumpWidget(ReviewApp(call: host));
       await tester.pumpAndSettle();
       expect(find.text('每日词量与纠结词趋势'), findsOneWidget);
+      expect(find.text('较昨日　-1 / —'), findsOneWidget);
+      expect(find.text('部分历史日期的统计来自已导出的 Markdown。'), findsOneWidget);
       expect(find.text('每日复习 Prompt'), findsNothing);
       expect(calls, ['initialize']);
       await tester.tap(find.text('导出今日复习'));
