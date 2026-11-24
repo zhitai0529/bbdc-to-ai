@@ -253,31 +253,83 @@ function setChecks(adb, root) {
         : "";
   }
 }
+const taskLabels = {
+  setup: "一键配置 MuMu",
+  sync: "同步 MuMu",
+  export: "导出今日复习",
+};
+async function taskResult(action, result) {
+  const configured = result.status === "configured";
+  const note =
+    result.message ||
+    (configured
+      ? "请在 MuMu 中打开并登录不背单词，再点「同步 MuMu」。"
+      : `「${taskLabels[action]}」未完成，请重试。`);
+  if (result.day) apply(await api().select_day(result.day));
+  record(note);
+  message(note, true);
+  if (action === "setup") {
+    const time = new Date().toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const adbOK = result.lines?.includes("ADB 连接通过。"),
+      rootOK = result.lines?.includes("Root 检查通过。");
+    setChecks(
+      adbOK ? "通过 " + time : "未完成",
+      rootOK ? "通过 " + time : "未完成",
+    );
+  }
+  if (["exported", "no_records"].includes(result.status)) return;
+
+  const choices = [["ok", "关闭"]];
+  if (result.recovery?.includes("download")) {
+    choices.push(["download", "打开 MuMu 官网"]);
+  }
+  if (result.recovery?.includes("locate")) {
+    choices.push(["locate", "选择安装目录"]);
+  }
+  const choice = await choose(
+    configured ? "配置完成" : `${taskLabels[action]}未完成`,
+    note,
+    choices,
+  );
+  if (choice === "download") await api().download_mumu();
+  if (choice === "locate" && (await api().locate_manager())) {
+    message(
+      `已选择 MuMu 安装目录。启动目标 Android 15 实例后，再点「${taskLabels[action]}」。`,
+      true,
+    );
+  }
+}
 async function run(action) {
   if (busy) return;
   busy = true;
   controls();
   try {
-    if (
-      action === "setup" &&
-      (await choose(
+    if (action === "setup") {
+      const choice = await choose(
         "一键配置 MuMu",
-        "将检查 ADB、Root 与 App 版本。开启 Root 可能需要重启当前实例，请先结束正在进行的学习。",
+        "1. 打开 MuMu 多开器，启动要用的 Android 15 实例。如果新建实例时没有 Android 15 选项，请从官网更新 Windows 版 MuMu。\n\n" +
+          "2. 在该实例内安装「不背单词」5.11.8 x86。\n\n" +
+          "3. 结束当前学习后再开始配置。助手会检查连接和 App 版本，需要开启 Root 时会重启该实例。",
         [
           ["", "返回"],
+          ["download", "打开 MuMu 官网"],
           ["yes", "开始配置"],
         ],
-      )) !== "yes"
-    )
-      return;
+      );
+      if (choice === "download") await api().download_mumu();
+      if (choice !== "yes") return;
+    }
     let result = await api().start(action);
     if (result.status === "choose") {
       const choice = await choose(
-        "查找 MuMu 安装位置",
-        "已安装时，右键 MuMu 桌面图标，点「打开文件所在的位置」，再选择该文件夹。",
+        "未找到 MuMu 安装位置",
+        "未安装时，请先从官网下载 Windows 版 MuMu。\n\n已安装时，右键 MuMu 桌面图标，点「打开文件所在的位置」，再选择该文件夹。",
         [
           ["", "返回"],
-          ["download", "官网下载"],
+          ["download", "打开 MuMu 官网"],
           ["locate", "选择安装目录"],
         ],
       );
@@ -288,8 +340,13 @@ async function run(action) {
       if (choice !== "locate" || !(await api().locate_manager())) return;
       result = await api().start(action);
     }
-    if (result.status !== "started")
-      throw Error("未能启动任务，请重新选择 MuMu 安装目录。");
+    if (result.status !== "started") {
+      const guidance =
+        result.status === "choose"
+          ? "请重新选择 MuMu 安装目录。"
+          : "请关闭助手后重试。";
+      throw Error(`「${taskLabels[action]}」未能启动。${guidance}`);
+    }
     const label = {
       setup: "正在配置 MuMu 并检查连接…",
       sync: "正在打开 MuMu 并同步学习记录…",
@@ -305,36 +362,7 @@ async function run(action) {
       for (const line of (r.lines ?? []).slice(seen)) record(line);
       seen = (r.lines ?? []).length;
       if (r.status === "running") continue;
-      if (r.status === "idle") break;
-      let note = r.message || "任务已结束。";
-      if (r.status === "configured")
-        note = "配置完成。请在 MuMu 中登录不背单词，再点「同步 MuMu」。";
-      if (r.status === "app_missing")
-        note += " 请在刚才打开的 MuMu 实例内安装并登录不背单词后重试。";
-      if (r.day) apply(await api().select_day(r.day));
-      record(note);
-      message(note, true);
-      if (action === "setup") {
-        const time = new Date().toLocaleTimeString("zh-CN", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        const adbOK = r.lines?.includes("ADB 连接通过。"),
-          rootOK = r.lines?.includes("Root 检查通过。");
-        setChecks(
-          adbOK ? "通过 " + time : "未确认",
-          rootOK ? "通过 " + time : "未确认",
-        );
-      }
-      if (
-        action === "setup" ||
-        ["app_missing", "mumu_missing"].includes(r.status)
-      )
-        await choose(
-          r.status === "configured" ? "配置完成" : "MuMu 检查结果",
-          note,
-          [["ok", "知道了"]],
-        );
+      await taskResult(action, r);
       break;
     }
   } finally {

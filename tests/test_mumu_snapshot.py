@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from src.localdb import COMMON_SHA256
+from src.mumu_diagnostics import SyncError
 from src.mumu_snapshot import enrich_meanings, read_protocol
 
 
@@ -25,8 +26,9 @@ class SnapshotCacheTests(unittest.TestCase):
             self.assertEqual(read_protocol(adb, cache)['apk_sha256'], digest)
             self.assertEqual(verify.call_count, 1)
             self.assertEqual(adb.run.call_args.args, ('shell', "sha256sum '/data/app/test location/base.apk'"))
-            with self.assertRaisesRegex(ValueError, 'App 版本未验证'):
+            with self.assertRaisesRegex(SyncError, '5.11.8 x86') as error:
                 read_protocol(adb, cache)
+            self.assertEqual(error.exception.reason, 'app_incompatible')
             self.assertEqual(verify.call_count, 2)
 
     def test_missing_apk_digest_tool_revalidates_apk(self) -> None:

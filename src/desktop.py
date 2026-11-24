@@ -31,7 +31,7 @@ class ReviewWindow(ReviewView):
         root.title(f'不背单词复习助手 v{VERSION}')
 
     def open_latest(self, status: str = '正在查看已保存的复习', *,
-                    empty_status: str = '此目录还没有复习文件。首次使用可先点「一键配置 MuMu」，再点「查看已有复习」。') -> bool:
+                    empty_status: str = '此目录还没有复习文件。首次使用可先点「一键配置 MuMu」，再点「同步 MuMu」。') -> bool:
         try:
             path = latest_review(self.output_dir)
         except OSError:
@@ -104,7 +104,6 @@ class ReviewWindow(ReviewView):
         if setup:
             self.status.set('正在配置 MuMu 并检查连接，请稍候。')
         else:
-            self.clear_preview()
             self.status.set('正在打开 MuMu 并同步学习记录，请稍候。' if sync
                             else '正在用本机记录导出今日复习，请稍候。')
         self.root.after(200, self.poll)
@@ -123,16 +122,16 @@ class ReviewWindow(ReviewView):
             self.root.destroy()
             return
         self.set_busy(False)
-        self.show_result(result)
         if result.sync or result.setup:
             # MuMu brings its window forward when it launches the app.
             self.root.attributes('-topmost', True)
             self.root.lift()
             self.root.focus_force()
             self.root.after(1500, lambda: self.root.attributes('-topmost', False))
+        self.show_result(result)
 
     def show_result(self, result: ExportJobResult) -> None:
-        if result.setup or result.status in ('app_missing', 'mumu_missing'):
+        if result.setup or (result.sync and result.status in ('app_missing', 'mumu_missing', 'error')):
             self.mumu.show_result(result)
         elif result.status == 'exported' and result.output is not None:
             details = ''
@@ -144,16 +143,18 @@ class ReviewWindow(ReviewView):
                 details += f'App 最新记录时间 {result.latest_saved_at:%m/%d %H:%M}。'
             self.open_review(result.output, '同步成功，复习已刷新' if result.sync else '今日复习已导出', details)
         elif result.sync:
-            message = result.message or '同步后未找到可导出的学习记录。'
-            if not self.open_latest(f'{message} 正在查看本地复习', empty_status=message):
-                self.status.set(message)
+            message = f'{result.day} 同步后没有可导出的学习记录。请在 App 完成一组学习后再同步。'
+            if result.last_day:
+                message += f'本机最近有记录的学习日为 {result.last_day}。'
+            self.status.set(message)
         elif result.status == 'no_records':
-            self.status.set(f'本机还没有 {result.day} 的学习记录。')
-            last_record = f'本机最近有记录的学习日是 {result.last_day}。\n\n' if result.last_day else ''
-            self.display(last_record + '点「查看已有复习」可以同步 App 并导出。')
+            message = f'本机还没有 {result.day} 的学习记录。点「同步 MuMu」可以从 App 同步。'
+            if result.last_day:
+                message += f'本机最近有记录的学习日为 {result.last_day}。'
+            self.status.set(message)
         else:
             self.status.set('这次没有导出成功。')
-            self.display(result.message or '请检查保存位置后重试。')
+            messagebox.showwarning('导出未完成', result.message or '请检查保存位置后重试。', parent=self.root)
 
     def copy(self) -> None:
         if self.content:

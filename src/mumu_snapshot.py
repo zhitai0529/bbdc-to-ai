@@ -11,9 +11,11 @@ import shlex
 import sqlite3
 from subprocess import TimeoutExpired
 from typing import Any, Literal
+from zipfile import BadZipFile
 
 from src.localdb import COMMON_SHA256, decrypt_database, protocol_from_apk
 from src.mumu_adb import Adb, PACKAGE
+from src.mumu_diagnostics import APP_VERSION_STEPS, SyncError
 from src.storage import write_json
 
 
@@ -29,7 +31,8 @@ def read_protocol(adb: Adb, cache_path: Path | None = None) -> dict[str, Any]:
     package_path = adb.shell(f'pm path {PACKAGE}')
     paths = [line[8:] for line in package_path.splitlines() if line.startswith('package:')]
     if len(paths) != 1:
-        raise ValueError('未找到唯一 base.apk，当前仅支持已验证的单 APK 安装')
+        raise SyncError('安装包检查未通过，无法从这个安装读取学习数据。' + APP_VERSION_STEPS,
+                        reason='app_incompatible')
     cached = read_optional_json(cache_path) if cache_path is not None else {}
     if (cached.get('app_profile') == 'android-5.11.8'
             and cached.get('common_sha256') == COMMON_SHA256
@@ -45,7 +48,11 @@ def read_protocol(adb: Adb, cache_path: Path | None = None) -> dict[str, Any]:
             return cached
 
     data = adb.run('exec-out', 'cat', paths[0], timeout=90)
-    protocol = protocol_from_apk(data)
+    try:
+        protocol = protocol_from_apk(data)
+    except (ValueError, KeyError, BadZipFile) as exc:
+        raise SyncError('已安装的不背单词版本、架构或安装包与助手支持的版本不匹配。' + APP_VERSION_STEPS,
+                        reason='app_incompatible') from exc
     if cache_path is not None:
         protocol['apk_sha256'] = sha256(data).hexdigest()
         write_json(cache_path, protocol)

@@ -8,7 +8,7 @@ from pathlib import Path
 import subprocess
 from typing import TextIO
 
-from src.dashboard import DashboardAPI
+from src.desktop_api import DesktopAPI
 from src.runtime import PROJECT_ROOT, data_directory, is_packaged
 from src.storage import atomic_write
 
@@ -28,7 +28,7 @@ def read_theme() -> str:
     return value if value in THEME_MODES else 'system'
 
 
-class FlutterAPI(DashboardAPI):
+class FlutterAPI(DesktopAPI):
     def save_theme(self, mode: str) -> None:
         if mode not in THEME_MODES:
             raise ValueError('无效的主题选项。')

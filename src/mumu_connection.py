@@ -12,21 +12,13 @@ from typing import Any
 from filelock import FileLock
 
 from src.mumu_adb import Adb, PACKAGE
+from src.mumu_diagnostics import (
+    ANDROID_15_STEPS, AppNotInstalled as AppNotInstalled,
+    ManagerResponseError, MumuNotFound as MumuNotFound, SyncError as SyncError,
+    incompatible_manager,
+)
 from src.mumu_installation import discover_mumu_manager
-
-
-class SyncError(RuntimeError):
-    pass
-
-
-class AppNotInstalled(SyncError):
-    status = 'app_missing'
-    exit_code = 3
-
-
-class MumuNotFound(SyncError):
-    status = 'mumu_missing'
-    exit_code = 4
+from src.mumu_instances import android_version, choose_instance, is_android_15, is_started
 
 
 def run_manager(manager: Path, *args: str) -> dict[str, Any]:
@@ -36,15 +28,29 @@ def run_manager(manager: Path, *args: str) -> dict[str, Any]:
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
         )
     except FileNotFoundError as exc:
-        raise MumuNotFound('找不到 MuMu 管理程序。请重新选择 MuMu 安装位置。') from exc
+        raise MumuNotFound('找不到 MuMu 管理程序。请重新选择 MuMu 的安装目录；若使用旧版，请先更新 MuMu。') from exc
+    except PermissionError as exc:
+        raise SyncError('Windows 无法运行 MuMu 管理程序。请先从开始菜单打开 MuMu；'
+                        '如果 MuMu 本身也打不开，请使用官网安装程序修复后再试。',
+                        reason='manager_unavailable') from exc
+    except subprocess.TimeoutExpired as exc:
+        raise SyncError('等待 MuMu 管理程序响应超时。请查看 MuMu 是否有更新、启动失败或其他弹窗，'
+                        '处理提示后在多开器重新打开目标实例，再试一次。',
+                        reason='manager_unavailable') from exc
     try:
         response = json.loads(result.stdout.decode('utf-8-sig'))
     except ValueError as exc:
-        raise SyncError('无法读取 MuMu 启动状态。请检查 MuMu 是否正常安装。') from exc
+        raise ManagerResponseError('MuMu 管理程序没有返回可识别的结果。请在多开器启动目标实例后再试。',
+                                   reason='manager_unavailable') from exc
     if not isinstance(response, dict):
-        raise SyncError('MuMu 返回了无效的操作结果。')
-    if result.returncode or response.get('errcode', 0):
-        raise SyncError(f"MuMu 操作失败：{response.get('errmsg') or result.returncode}")
+        raise ManagerResponseError('MuMu 管理程序返回了不兼容的数据格式。请从 MuMu 官网更新 Windows 版后重试。',
+                                   reason='manager_incompatible')
+    if result.returncode or response.get('errcode') not in (None, 0, '0', ''):
+        raise ManagerResponseError(
+            f"MuMu 未完成请求（错误码 {response.get('errcode') or result.returncode}）。"
+            '请查看模拟器窗口中的提示，进入 Android 首页后再试。',
+            reason='manager_unavailable',
+        )
     return response
 
 
@@ -78,18 +84,16 @@ def select_mumu(*, manager: Path | None = None) -> tuple[Path, str, dict[str, An
     if manager is None:
         manager = discover_mumu_manager()
     if manager is None or not manager.is_file():
-        raise MumuNotFound('找不到 MuMu 模拟器。请打开 MuMu，或选择其安装位置后重试。')
+        raise MumuNotFound(
+            '找不到 MuMu 的管理程序。已安装时，打开 MuMu 后重试，或手动选择它的安装目录。'
+            '若找不到管理程序或使用旧版，请从 MuMu 官网安装或更新 Windows 版，再在多开器里创建 Android 15 实例。'
+        )
     manager = manager.resolve()
-    instances = run_manager(manager, 'info', '-v', 'all')
-    installed = [entry for entry in instances.values() if isinstance(entry, dict) and 'index' in entry]
-    running = [entry for entry in installed if entry.get('is_process_started')]
-    choices = running or installed
-    if len(choices) != 1:
-        raise SyncError('请在 MuMu 中只运行一个要使用的实例，然后重试。')
-    instance = choices[0]
-    index = str(instance['index'])
-    if not re.fullmatch(r'[0-9]+', index):
-        raise SyncError('无法识别 MuMu 实例的编号。')
+    try:
+        instances = run_manager(manager, 'info', '-v', 'all')
+    except ManagerResponseError as exc:
+        raise incompatible_manager() from exc
+    index, instance = choose_instance(instances)
     return manager, index, instance
 
 
@@ -98,27 +102,36 @@ def connect_mumu(manager: Path, index: str, instance: dict[str, Any], session: P
     state = instance
     launch_requested = False
     deadline = time.monotonic() + 90
-    if not state.get('is_android_started') or not state.get('adb_port'):
+    if not is_started(state.get('is_android_started')) or not state.get('adb_port'):
         # Recheck before claiming ownership of an instance that may be starting.
         state = run_manager(manager, 'info', '-v', index)
     while time.monotonic() < deadline:
-        if not state.get('is_process_started') and not launch_requested:
+        version = android_version(state.get('android_version'))
+        if version and not is_android_15(version):
+            raise SyncError(f'实例 {index} 使用 Android {version}。' + ANDROID_15_STEPS,
+                            reason='android_unsupported')
+        running = is_started(state.get('is_process_started')) or is_started(state.get('is_android_started'))
+        if not running and not launch_requested:
             if session is not None:
                 launch_mumu(manager, index, session)
             else:
                 run_manager(manager, 'control', '-v', index, 'launch')
             launch_requested = True
-        if state.get('is_android_started') and state.get('adb_port'):
+        if is_started(state.get('is_android_started')) and state.get('adb_port'):
             serial = f"{state.get('adb_host_ip', '127.0.0.1')}:{state['adb_port']}"
             try:
-                adb = Adb(serial=serial, manager=manager, android_version=state.get('android_version'))
+                adb = Adb(serial=serial, manager=manager, android_version=version)
                 packages = adb.shell(f'pm path {PACKAGE} 2>&1 || true')
+            except FileNotFoundError as exc:
+                raise SyncError('没有找到 MuMu 附带的 ADB 连接工具。请从官网下载新版 MuMu 修复安装，'
+                                '再打开 Android 15 实例重试。', reason='adb_unavailable') from exc
             except (RuntimeError, subprocess.TimeoutExpired):
                 pass  # The ADB port can appear before Android is ready to answer.
             else:
                 if not packages:
                     raise AppNotInstalled(
-                        f'已找到 MuMu 实例 {index}。请在这个实例内安装不背单词，安装完成后重试。'
+                        f'已找到 MuMu 实例 {index}，但其中没有安装不背单词。'
+                        '请在这个实例安装不背单词 5.11.8 x86，打开 App 并登录后重试。'
                     )
                 if packages.startswith('package:'):
                     if launch_app:
@@ -126,7 +139,9 @@ def connect_mumu(manager: Path, index: str, instance: dict[str, Any], session: P
                     return adb
         time.sleep(1)
         state = run_manager(manager, 'info', '-v', index)
-    raise SyncError('连接 MuMu 的 ADB 超时。请确认模拟器已进入 Android 首页，然后重试。')
+    raise SyncError('连接 MuMu 的 ADB 超时。请在多开器打开目标 Android 15 实例，等到模拟器桌面出现再重试。'
+                    '若已进入桌面，且设置中有「ADB 调试」选项，请确认已开启。可重启该实例后再试。',
+                    reason='adb_timeout')
 
 
 def open_mumu(session: Path | None = None, *, manager: Path | None = None) -> Adb:

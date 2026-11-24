@@ -30,6 +30,7 @@ class ExportJobResult:
     target_word_count: int | None = None
     latest_saved_at: datetime | None = None
     setup: bool = False
+    reason: str | None = None
 
 
 def parse_result(returncode: int, output_text: str, *, sync: bool, setup: bool = False) -> ExportJobResult:
@@ -61,8 +62,10 @@ def parse_result(returncode: int, output_text: str, *, sync: bool, setup: bool =
         return ExportJobResult('no_records', sync, day=day, last_day=last_day)
 
     message = reply.get('message')
+    reason = reply.get('reason')
     return ExportJobResult(expected_status, sync,
-                           message=message if isinstance(message, str) else None, setup=setup)
+                           message=message if isinstance(message, str) else None, setup=setup,
+                           reason=reason if isinstance(reason, str) else None)
 
 
 def python_command() -> tuple[str, dict[str, str]]:
@@ -120,7 +123,8 @@ class ExportJob:
         if returncode is None:
             if time.monotonic() < self.deadline:
                 return None
-            self.request_cancel('操作超时，请再试一次。')
+            self.request_cancel('操作超时。请等 MuMu 进入安卓桌面后重试。' if self.sync or self.setup else
+                                '离线导出超时。请检查导出文件夹是否可用后重试。')
             return None
         try:
             if self.output is None:
@@ -130,7 +134,9 @@ class ExportJob:
                 result = self.output.read().decode('utf-8')
             return parse_result(returncode, result, sync=self.sync, setup=self.setup)
         except (OSError, ValueError) as exc:
-            return ExportJobResult('error', self.sync, message=f'未收到后台任务结果（{type(exc).__name__}）。',
+            return ExportJobResult('error', self.sync,
+                                   message='后台任务没有返回结果。请重新打开助手后重试。'
+                                           f'若再次失败，反馈时请附上：{type(exc).__name__}。',
                                    setup=self.setup)
         finally:
             self.cleanup()
@@ -151,7 +157,10 @@ class ExportJob:
                                          message=timeout_message, setup=self.setup)
             pending.set_result(result)
 
-        Thread(target=cancel_in_background, daemon=False).start()
+        try:
+            Thread(target=cancel_in_background, daemon=False).start()
+        except RuntimeError:
+            cancel_in_background()
 
     def cancel(self) -> None:
         try:

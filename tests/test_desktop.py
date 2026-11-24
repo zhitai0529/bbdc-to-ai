@@ -127,11 +127,11 @@ class DesktopTests(unittest.TestCase):
             job.assert_called_once_with(sync=False, setup=True, manager=None)
             clear_preview.assert_not_called()
         with patch('src.desktop_mumu.messagebox.showinfo') as popup:
-            window.show_result(ExportJobResult('configured', False, message='连接已就绪。', setup=True))
+            guidance = '连接已就绪。请在 App 登录后点击「同步 MuMu」。'
+            window.show_result(ExportJobResult('configured', False, message=guidance, setup=True))
             self.assertEqual(popup.call_args.args[0], '配置完成')
-            self.assertIn('查看已有复习', popup.call_args.args[1])
-            self.assertIn('登录', popup.call_args.args[1])
-        window.status.set.assert_called_with('连接已就绪。')
+            self.assertEqual(popup.call_args.args[1], guidance)
+        window.status.set.assert_called_with(guidance)
 
     def test_setup_error_explains_the_failure(self) -> None:
         window = ReviewWindow.__new__(ReviewWindow)
@@ -141,6 +141,48 @@ class DesktopTests(unittest.TestCase):
         with patch('src.desktop_mumu.messagebox.showwarning') as popup:
             window.show_result(ExportJobResult('error', False, message='请先安装不背单词。', setup=True))
         popup.assert_called_once_with('MuMu 配置未完成', '请先安装不背单词。', parent=window.root)
+
+    def test_android_version_error_offers_official_update(self) -> None:
+        root = Mock()
+        dialogs = MumuDialogs(root, Mock())
+        guidance = '当前实例是 Android 12。请在多开器新建 Android 15 实例。'
+        with patch('src.desktop_mumu.messagebox.askyesno', return_value=True) as prompt, \
+                patch('src.desktop_mumu.webbrowser.open', return_value=True) as browser:
+            dialogs.show_result(ExportJobResult('error', False, message=guidance, setup=True,
+                                                reason='android_unsupported'))
+        self.assertIn(guidance, prompt.call_args.args[1])
+        browser.assert_called_once_with('https://mumu.163.com/')
+
+    def test_incompatible_manager_can_be_reselected_without_restart(self) -> None:
+        root = Mock()
+        dialogs = MumuDialogs(root, Mock())
+        replacement = Path.cwd() / '另一个安装目录' / 'MuMuManager.exe'
+        guidance = '无法读取 MuMu 实例列表，请检查 Windows 版 MuMu 安装。'
+        with patch.object(dialogs, '_choose_folder', return_value=replacement) as locate, \
+                patch('src.desktop_mumu.remember_mumu_manager') as remember:
+            dialogs.show_result(ExportJobResult('error', True, message=guidance,
+                                                reason='manager_incompatible'))
+        locate.assert_called_once_with(guidance)
+        remember.assert_called_once_with(replacement)
+        self.assertEqual(dialogs.manager, replacement)
+
+    def test_failed_sync_keeps_current_review_preview(self) -> None:
+        window = ReviewWindow.__new__(ReviewWindow)
+        window.root = Mock()
+        window.job = None
+        window.closing = False
+        window.status = Mock()
+        window.content = '已有复习'
+        window.mumu = Mock()
+        result = ExportJobResult('error', True, message='请打开 MuMu 后重试。', reason='manager_unavailable')
+        with patch('src.desktop.ExportJob') as job, patch.object(window, 'set_busy'), \
+                patch.object(window, 'clear_preview') as clear_preview:
+            job.return_value.poll.return_value = result
+            window.start_export(sync=True)
+            window.poll()
+            clear_preview.assert_not_called()
+        window.mumu.show_result.assert_called_once_with(result)
+        self.assertEqual(window.content, '已有复习')
 
     def test_app_missing_retry_reuses_automatically_found_manager_after_restart(self) -> None:
         with TemporaryDirectory() as folder:
@@ -157,6 +199,7 @@ class DesktopTests(unittest.TestCase):
                                       sync=False, setup=True)
                 first.show_result(result)
                 self.assertIn('请安装不背单词', warning.call_args.args[0])
+                self.assertEqual(warning.call_args.args[1], '同一实例内安装')
                 self.assertEqual(first.select_manager(), manager)
                 restarted = MumuDialogs(Mock(), Mock())
                 self.assertEqual(restarted.select_manager(), manager)

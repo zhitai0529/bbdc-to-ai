@@ -111,11 +111,11 @@ class ReviewView:
                            highlightthickness=1, padx=14, pady=13)
         sidebar.grid(row=0, column=0, sticky='nsew', padx=(0, 12))
         self._label(sidebar, '学习记录', size=12, bold=True).pack(anchor='w', pady=(0, 9))
-        self.open_button = self._action(sidebar, '查看已有复习', '打开 MuMu 并同步学习记录',
+        self.open_button = self._action(sidebar, '同步 MuMu', '打开 MuMu 并同步学习记录',
                                         actions.sync, primary=True)
         self.setup_button = self._action(sidebar, '一键配置 MuMu', '开启 Root 并检查连接', actions.setup)
         self.export_button = self._action(sidebar, '导出今日复习', '用本机已有记录生成文件', actions.export)
-        self.saved_button = self._action(sidebar, '仅看本地文件', '在资源管理器打开导出目录', actions.open_folder)
+        self.saved_button = self._action(sidebar, '打开导出目录', '在资源管理器查看复习文件', actions.open_folder)
 
         location = tk.Frame(sidebar, background=PANEL)
         location.pack(side='bottom', fill='x', pady=(12, 0))

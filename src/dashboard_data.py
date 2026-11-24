@@ -10,16 +10,13 @@ from typing import Any
 
 from src.bbdc_schema import study_date
 from src.config import Config
+from src.desktop_files import review_path as review_path
 from src.export_summary import read_export_summary
 from src.history import count_prior_days
 from src.parser import WordRecord, collect_unknown_codes
 from src.pipeline import escalate
 from src.review_cache import ReviewCache
 from src.version import VERSION
-
-
-def review_path(directory: Path, day: date) -> Path:
-    return directory / f'{day.isoformat()}_bbdc_review.md'
 
 
 def history_series(conn: sqlite3.Connection, day: date, config: Config) -> list[dict]:
@@ -51,7 +48,10 @@ def dashboard(config: Config, selection: str | None = None) -> dict[str, Any]:
     except sqlite3.Error as exc:
         # Keep existing Markdown and the settings page accessible when SQLite is unavailable.
         data = _snapshot(config, selection, use_history=False)
-        data['warning'] = f'历史库暂时无法读取，跨天统计不可用。{exc} {data["warning"]}'.strip()
+        data['warning'] = (
+            f'历史库暂时无法读取。可以继续查看已有复习文件。请关闭其他正在导出的窗口后重试。'
+            f'读取错误为 {exc}。 {data["warning"]}'
+        ).strip()
         return data
 
 
@@ -97,7 +97,7 @@ def _snapshot(config: Config, selection: str | None, *, use_history: bool) -> di
         cached = ReviewCache(config, day).load()
     except (ValueError, TypeError, OSError) as exc:
         cached = {}
-        warning = f'词条缓存暂时无法读取。{exc}'
+        warning = f'词条缓存暂时无法读取。可先打开已有复习文件。读取错误为 {exc}。'
     words = list(cached.values()) or stored
     counts = Counter(count_prior_days(config.history_path, day, config.escalation_window_days)
                      if use_history else {})
@@ -122,7 +122,7 @@ def _snapshot(config: Config, selection: str | None, *, use_history: bool) -> di
         prompt = None
     except (OSError, UnicodeError) as exc:
         prompt = None
-        warning = f'{warning} 复习文件暂时无法读取。{exc}'.strip()
+        warning = f'{warning} 复习文件暂时无法读取。请检查导出目录及文件编码。读取错误为 {exc}。'.strip()
     rows_by_day = {row['day']: row for row in series}
     first_visible = date.fromordinal(max(1, day.toordinal() - 167))
     # Keep the exported summaries in the view model. They cannot restore the

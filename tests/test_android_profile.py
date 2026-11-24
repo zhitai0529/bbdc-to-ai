@@ -280,7 +280,7 @@ class AndroidProfileTests(unittest.TestCase):
         adb = object.__new__(Adb)
         adb._use_su = True
         with patch.object(adb, 'run', return_value=b'missing\r\n') as run:
-            with self.assertRaisesRegex(FileNotFoundError, '请先进入 App 首页'):
+            with self.assertRaisesRegex(FileNotFoundError, '登录原账号并完成一组学习'):
                 adb.stable_database('LangEasyLexis.db')
             run.assert_called_once()
 

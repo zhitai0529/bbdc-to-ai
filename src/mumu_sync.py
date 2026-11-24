@@ -8,7 +8,7 @@ from uuid import uuid4
 from xml.etree import ElementTree as ET
 
 from src.mumu_adb import Adb, PACKAGE
-from src.mumu_connection import SyncError
+from src.mumu_diagnostics import SyncError
 
 
 def read_screen(adb: Adb) -> list[ET.Element]:
@@ -69,9 +69,12 @@ def sync_learning_records(adb: Adb) -> None:
             continue
         labels = {node.get('text', '') for node in nodes}
         if any('同步失败' in label for label in labels):
-            raise SyncError('不背单词提示数据同步失败。请检查 MuMu 的网络。')
+            raise SyncError('不背单词提示数据同步失败。请在模拟器里确认能联网，并在 App 中手动点一次'
+                            '「学习偏好 → 更多学习偏好 → 同步学习数据」。App 显示成功后，再回助手重试。',
+                            reason='app_sync_failed')
         if labels & {'登录', '请先登录', '手机号登录', '微信登录'}:
-            raise SyncError('请先在 MuMu 的不背单词中登录原账号。')
+            raise SyncError('不背单词需要登录。请在这个 MuMu 实例内打开 App 并登录原来的账号，'
+                            '回到 App 首页后再点「同步 MuMu」。', reason='app_login_required')
         if '数据同步成功' in labels:
             # Only acknowledge this specific success dialog, never a generic confirmation.
             button = next((node for node in nodes if node.get('text') == '确定'
@@ -107,5 +110,8 @@ def sync_learning_records(adb: Adb) -> None:
             if page and swipes[page] < 4 and scroll_preferences(adb, nodes, page):
                 swipes[page] += 1
     if requested:
-        raise SyncError('已发起同步，但未看到 App 确认成功。请稍后重试。')
-    raise SyncError('未找到同步入口。若正在答题或有弹窗，请先回到不背单词首页。')
+        raise SyncError('已发起同步，等待 App 确认成功超时。请切回 MuMu 查看同步结果。'
+                        '如果仍在同步，请等它完成后再点「同步 MuMu」。', reason='app_sync_timeout')
+    raise SyncError('未找到不背单词的同步入口。请结束当前答题，处理 App 里的弹窗并回到首页，再重试。'
+                    '也可在 App 点「头像 → 学习偏好 → 更多学习偏好 → 同步学习数据」。',
+                    reason='app_sync_entry_missing')

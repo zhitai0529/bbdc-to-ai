@@ -40,7 +40,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(json.dumps({'status': 'no_records', 'day': day.isoformat(),
                                   'last_day': latest.isoformat() if latest else None}, ensure_ascii=False))
             else:
-                print(f'本机没有 {day} 的复习缓存。先在助手中点「查看已有复习」同步。')
+                print(f'本机没有 {day} 的学习记录。请先在助手中点「同步 MuMu」。')
                 if latest:
                     print(f'本机最近有记录的学习日是 {latest}。')
             return 2

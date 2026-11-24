@@ -86,7 +86,7 @@ def main() -> None:
             finally:
                 win.destroy()
 
-        with patch('src.dashboard.load_config', return_value=config), patch('pyperclip.copy') as clipboard:
+        with patch('src.desktop_api.load_config', return_value=config), patch('pyperclip.copy') as clipboard:
             open_window(DashboardAPI(), exercise)
         if errors:
             raise errors[0]

@@ -21,11 +21,13 @@
 
 ## 首次配置 MuMu
 
-从 App 同步需要 **MuMu Android 15**，以及模拟器内的「不背单词」**5.11.8 x86**。请在 App 内登录自己的账号。已有本机记录时，可以直接离线查看或导出。
+从 App 同步需要 Windows 版 MuMu 中的 **Android 15 实例**，以及装在该实例里的「不背单词」**5.11.8 x86**。请在 App 内登录自己的账号。已有本机记录时，可以直接离线查看或导出。
 
 1. 在左侧「MuMu 与设置」里点 **「一键配置 MuMu」**。助手会从常见安装位置、Windows 安装记录和正在运行的 MuMu 中查找模拟器。若显示「未找到 MuMu」，已安装的用户可手动选择安装位置，未安装的用户可以打开官网下载。
 2. 确认配置后，助手会使用 MuMu 自带的 Root 开关，必要时重启该实例，并检查 ADB、Root 和 App 版本。点击前请结束正在进行的学习。
 3. 配置完成后，按弹窗提示确认已登录 App，回到助手点 **「同步 MuMu」**。同步结束后，复习词表会显示在窗口里，可以直接复制或打开保存目录。
+
+如果提示实例使用 Android 12 或其他版本，打开 **MuMu 多开器**，启动已有的 Android 15 实例，或点「新建」创建一个。新实例需要重新安装并登录不背单词，原有实例可以继续保留。如果「新建」列表没有 Android 15，或助手提示无法读取 MuMu 的实例列表，请先通过弹窗里的官网入口更新 Windows 版 MuMu，再重试配置。若提示存在多个可用实例，请在多开器里只启动本次要用的 Android 15 实例。
 
 MuMu 装在 D 盘等自定义位置时，可以右键桌面上的 MuMu 图标，打开「属性」查看「目标」指向的位置。自动找到或手动选中的位置都会保存。若提示「MuMu 已找到，请安装不背单词」，请在刚打开的实例中安装 App，回到助手再次点击原按钮即可。可以在窗口标题核对当前运行的版本号。
 
@@ -160,9 +162,11 @@ output_dir: 'D:/Obsidian/英语复习'
 
 - `src/interceptor.py` / `envelope.py`：代理采集、应用层解密。
 - `src/parser.py` / `bbdc_schema.py`：通用映射、实际版本适配。
-- `src/mumu_adb.py` / `mumu_snapshot.py` / `localdb.py`：设备连接、只读副本、释义查询与数据库校验。
+- `src/mumu_instances.py` / `mumu_connection.py` / `mumu_setup.py`：实例选择、连接生命周期、一键配置。
+- `src/mumu_adb.py` / `mumu_snapshot.py` / `localdb.py`：ADB 命令、只读副本、释义查询与数据库校验。
 - `src/mumu.py` / `offline_export.py`：分别处理设备读取和本机离线导出。
-- `src/desktop.py` / `desktop_view.py` / `desktop_files.py` / `desktop_worker.py`：分别处理窗口操作、界面布局、保存位置与文件查找、后台任务。
+- `src/desktop_api.py` / `desktop_jobs.py` / `desktop_worker.py` / `desktop_files.py`：桌面操作入口、后台任务状态、子进程、本地文件操作。
+- `flutter_ui/lib/`：Flutter 窗口和各页面，后台任务和复习草稿各自维护。源码兼容界面从 `src/dashboard.py` 或 `src/desktop.py` 启动。
 - `src/pipeline.py` / `review_cache.py` / `storage.py`：组织导出、按学习日维护缓存、原子写文件。
 - `src/history.py`：SQLite 每日记录和跨天统计。
 - `src/exporter.py`：Markdown AI 提示词与未知编码核对报告。

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 import re
 from tempfile import NamedTemporaryFile
@@ -9,13 +10,38 @@ from tempfile import NamedTemporaryFile
 import yaml
 from yaml.nodes import MappingNode, ScalarNode
 
-from src.config import load_config
+from filelock import FileLock, Timeout
+
+from src.config import Config, load_config
 from src.runtime import default_config_path
 from src.storage import atomic_write
 
 
 def load_output_dir(config_path: Path | None = None) -> Path:
     return load_config(config_path).output_dir
+
+
+def review_path(directory: Path, day: date) -> Path:
+    return directory / f'{day.isoformat()}_bbdc_review.md'
+
+
+def save_review_prompt(config: Config, day: date, original: str, content: str) -> None:
+    path = review_path(config.output_dir, day)
+    try:
+        config.state_dir.mkdir(parents=True, exist_ok=True)
+        with FileLock(str(config.state_dir / '.pipeline.lock'), timeout=5):
+            if path.read_text(encoding='utf-8-sig') != original:
+                raise ValueError('复习文件已被重新导出或修改，当前草稿还在。'
+                                 '请先「复制全部内容」备份草稿，再重启助手查看最新文件。')
+            atomic_write(path, content)
+    except FileNotFoundError as exc:
+        raise ValueError('找不到这份复习文件，当前草稿还在。'
+                         '请先「复制全部内容」备份草稿，再到导出目录检查文件是否被移动。') from exc
+    except Timeout as exc:
+        raise ValueError('另一个任务正在写入复习文件。请等它结束后再保存。') from exc
+    except (OSError, UnicodeError) as exc:
+        raise ValueError('无法保存草稿。请检查导出文件夹是否可写、文件是否为 UTF-8，'
+                         '或先复制草稿到其他位置。') from exc
 
 
 def latest_review(directory: Path) -> Path | None:

@@ -10,6 +10,7 @@ import shlex
 import shutil
 import subprocess
 
+from src.mumu_diagnostics import SyncError
 from src.mumu_installation import bundled_adb, discover_mumu_manager
 
 PACKAGE = 'cn.com.langeasy.LangEasyLexis'
@@ -69,12 +70,21 @@ class Adb:
         return self.run('shell', command).decode('utf-8', errors='replace').strip()
 
     def require_root(self) -> None:
-        if 'uid=0(' not in self.shell('id'):
-            self.run('root')
-            self._connect(self.serial)
-            self.run('wait-for-device')
-        if 'uid=0(' not in self.shell('id'):
-            raise RuntimeError('需要 MuMu 的 root 权限和 adb root；未修改 root 开关')
+        message = (
+            'ADB 没有取得 Root 权限，暂时无法读取学习记录。'
+            '在助手打开「MuMu 与设置」并运行「一键配置 MuMu」。'
+            '配置后，等目标实例进入 Android 桌面再点「同步 MuMu」。'
+        )
+        try:
+            if 'uid=0(' not in self.shell('id'):
+                self.run('root')
+                self._connect(self.serial)
+                self.run('wait-for-device')
+            if 'uid=0(' in self.shell('id'):
+                return
+        except (RuntimeError, subprocess.TimeoutExpired) as exc:
+            raise SyncError(message, reason='root_not_ready') from exc
+        raise SyncError(message, reason='root_not_ready')
 
     def prepare_database_access(self) -> None:
         if 'uid=0(' in self.shell('id'):
@@ -134,7 +144,8 @@ class Adb:
                   f'elif test -s {path}-wal || test -s {path}-journal; then echo pending; fi')
         ready = self._database_shell(status).strip()
         if ready == b'missing':
-            raise FileNotFoundError(f'不背单词还未创建 {name}，请先进入 App 首页并同步学习记录')
+            raise FileNotFoundError('不背单词尚未保存所需数据。请在模拟器里打开 App，登录原账号并完成一组学习，'
+                                    '然后回到 App 首页，同步成功后重试。')
         if ready:
             raise RuntimeError('有学习记录尚未写入主文件，请结束本组学习后再试。')
         previous = self._read_database(path)

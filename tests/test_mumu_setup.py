@@ -60,7 +60,7 @@ class MumuSetupTests(unittest.TestCase):
             connect.assert_called_once_with(self.manager, '2', instance, None, launch_app=False)
 
     def test_readonly_root_switch_does_not_modify_mumu(self) -> None:
-        with patch('src.mumu_setup.select_mumu', return_value=(self.manager, '2', {})), \
+        with patch('src.mumu_setup.select_mumu', return_value=(self.manager, '2', {'android_version': '15.0'})), \
                 patch('src.mumu_setup.run_manager', side_effect=[
                     {'root_permission': 'false'}, {'root_permission': {'writable': False}}]) as run, \
                 patch('src.mumu_setup.connect_mumu') as connect:
@@ -68,6 +68,29 @@ class MumuSetupTests(unittest.TestCase):
                 configure_mumu()
             self.assertEqual(run.call_args_list, [call(*self.setting), call(*self.setting, '--info')])
             connect.assert_not_called()
+
+    def test_cannot_confirm_android_version_before_configuring_root(self) -> None:
+        with patch('src.mumu_setup.select_mumu', return_value=(self.manager, '2', {})), \
+                patch('src.mumu_setup.run_manager') as run, patch('builtins.print') as output:
+            self.assertEqual(main(['--json']), 1)
+            self.assertIn('"reason": "android_unknown"', output.call_args.args[0])
+            self.assertIn('多开器', output.call_args.args[0])
+            self.assertIn('Android 15', output.call_args.args[0])
+            run.assert_not_called()
+
+    def test_missing_app_does_not_report_adb_as_unconfirmed(self) -> None:
+        instance = {'android_version': '15.0'}
+        with TemporaryDirectory() as folder, \
+                patch('src.mumu_setup.select_mumu', return_value=(self.manager, '2', instance)), \
+                patch('src.mumu_setup.enable_instance_root', return_value=instance), \
+                patch('src.mumu_setup.connect_mumu', side_effect=AppNotInstalled('请安装不背单词')):
+            session = Path(folder)
+            with self.assertRaises(AppNotInstalled):
+                configure_mumu(session)
+            log = (session / 'setup-progress.txt').read_text(encoding='utf-8')
+            self.assertIn('已选中 MuMu 实例 2（Android 15.0）', log)
+            self.assertIn('ADB 连接通过。', log)
+            self.assertNotIn('Root 检查通过。', log)
 
     def test_setup_worker_has_distinct_response(self) -> None:
         self.assertEqual(parse_result(0, '{"status":"configured","message":"ok"}',

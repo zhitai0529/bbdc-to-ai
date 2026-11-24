@@ -33,6 +33,125 @@ Json sample(String day) => {
 };
 void main() {
   testWidgets(
+    'MuMu setup discloses requirements and shows the backend diagnostic and next step',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final calls = <String>[];
+      const guidance =
+          '当前是 Android 12。请在 MuMu 多开器中启动 Android 15 模拟器，再点「一键配置 MuMu」。';
+      Future<dynamic> host(
+        String method, [
+        List<dynamic> args = const [],
+      ]) async {
+        calls.add(method);
+        switch (method) {
+          case 'initialize':
+            return {'data': sample('2026-11-24')};
+          case 'start':
+            expect(args, ['setup']);
+            return {'status': 'started'};
+          case 'poll':
+            return {
+              'status': 'error',
+              'reason': 'android_unsupported',
+              'recovery': ['download'],
+              'message': guidance,
+            };
+          case 'download_mumu':
+            return null;
+          default:
+            throw UnsupportedError(method);
+        }
+      }
+
+      await tester.pumpWidget(ReviewApp(call: host));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('MuMu 与设置'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('一键配置 MuMu'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.textContaining('5.11.8 x86'), findsAtLeastNWidgets(1));
+      expect(calls, ['initialize']);
+      await tester.tap(find.text('开始配置'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      final dialog = find.byType(AlertDialog);
+      expect(
+        find.descendant(of: dialog, matching: find.text(guidance)),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.descendant(of: dialog, matching: find.text('打开 MuMu 官网')),
+      );
+      await tester.pumpAndSettle();
+      expect(calls, ['initialize', 'start', 'poll', 'download_mumu']);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'A failed MuMu sync keeps the selected date and unsaved review draft',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const day = '2026-11-23';
+      final calls = <String>[];
+      Future<dynamic> host(
+        String method, [
+        List<dynamic> args = const [],
+      ]) async {
+        calls.add(method);
+        switch (method) {
+          case 'initialize':
+            return {'data': sample(day)};
+          case 'start':
+            expect(args, ['sync']);
+            return {'status': 'started'};
+          case 'poll':
+            return {
+              'status': 'error',
+              'reason': 'android_unsupported',
+              'message': '请启动 Android 15 实例。',
+            };
+          default:
+            throw UnsupportedError(method);
+        }
+      }
+
+      await tester.pumpWidget(ReviewApp(call: host));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('复习预览'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('源码编辑'));
+      await tester.pumpAndSettle();
+      const draft = '# 当前复习草稿';
+      await tester.enterText(find.byType(TextField), draft);
+      await tester.pump();
+      await tester.tap(find.text('同步 MuMu'));
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
+      final dialog = find.byType(AlertDialog);
+      expect(
+        find.descendant(of: dialog, matching: find.text('请启动 Android 15 实例。')),
+        findsOneWidget,
+      );
+      await tester.tap(find.descendant(of: dialog, matching: find.text('关闭')));
+      await tester.pumpAndSettle();
+      expect(calls, ['initialize', 'start', 'poll']);
+      expect(find.text(draft), findsOneWidget);
+      expect(find.text('有未保存的修改'), findsOneWidget);
+      expect(find.widgetWithText(Chip, day), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'Theme changes keep the active Markdown draft and sync both controls',
     (tester) async {
       tester.view.devicePixelRatio = 1;

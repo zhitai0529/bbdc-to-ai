@@ -15,7 +15,8 @@ from rich.console import Console
 from src.bbdc_schema import meaning_text, study_date
 from src.config import Config, load_config
 from src.mumu_adb import Adb, PACKAGE as PACKAGE
-from src.mumu_connection import AppNotInstalled, MumuNotFound, open_mumu
+from src.mumu_connection import open_mumu
+from src.mumu_diagnostics import SyncError
 from src.mumu_snapshot import copy_database, enrich_meanings, read_learning_rows, read_protocol
 from src.mumu_snapshot import snapshot_rows as snapshot_rows
 from src.parser import parse_time
@@ -128,9 +129,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             console.print(str(exc), style='yellow', markup=False)
         return 2
-    except (AppNotInstalled, MumuNotFound) as exc:
+    except SyncError as exc:
         if args.json:
-            print(json.dumps({'status': exc.status, 'message': str(exc)}, ensure_ascii=False))
+            reply = {'status': exc.status, 'message': str(exc)}
+            if exc.reason is not None:
+                reply['reason'] = exc.reason
+            print(json.dumps(reply, ensure_ascii=False))
         else:
             console.print(str(exc), style='yellow', markup=False)
         return exc.exit_code

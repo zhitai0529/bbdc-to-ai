@@ -24,7 +24,7 @@ class DashboardTests(unittest.TestCase):
                               state_dir=root / 'cache', output_dir=root / 'out')
         self.day = study_date(datetime.now(self.config.timezone))
         self.api = DashboardAPI()
-        p = patch('src.dashboard.load_config', return_value=self.config)
+        p = patch('src.desktop_api.load_config', return_value=self.config)
         p.start()
         self.addCleanup(p.stop)
 
@@ -105,7 +105,7 @@ class DashboardTests(unittest.TestCase):
         self.assertIn('复习 Prompt', invalid['prompt'])
 
     def test_offline_startup_and_cancellation(self):
-        with patch('src.dashboard.discover_mumu_manager') as discover, patch('src.dashboard.ExportJob') as worker:
+        with patch('src.desktop_jobs.discover_mumu_manager') as discover, patch('src.desktop_jobs.ExportJob') as worker:
             self.api.initialize()
             worker.assert_not_called()
             self.api.start('export')
@@ -119,8 +119,8 @@ class DashboardTests(unittest.TestCase):
     def test_sync_and_setup_use_discovery_and_remembered_manager(self):
         manager = Path(self.tmp.name) / 'MuMuManager.exe'
         manager.touch()
-        with patch('src.dashboard.discover_mumu_manager', side_effect=[None, manager]), \
-                patch('src.dashboard.remember_mumu_manager') as remember, patch('src.dashboard.ExportJob') as worker:
+        with patch('src.desktop_jobs.discover_mumu_manager', side_effect=[None, manager]), \
+                patch('src.desktop_jobs.remember_mumu_manager') as remember, patch('src.desktop_jobs.ExportJob') as worker:
             self.assertEqual(self.api.start('setup')['status'], 'choose')
             self.api.start('sync')
             worker.assert_called_once_with(sync=True, setup=False, manager=manager)
