@@ -38,6 +38,8 @@ jobs:
           Rename-Item dist/bbdc-to-ai.exe bbdc-to-ai-windows-x64.exe
           python -m tests.smoke_windows dist/bbdc-to-ai-windows-x64.exe --inspect
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m tests.smoke_windows dist/bbdc-to-ai-windows-x64.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $binary = Get-Item dist/bbdc-to-ai-windows-x64.exe
           $digest = (Get-FileHash -LiteralPath $binary.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           "$digest  $($binary.Name)" | Set-Content -LiteralPath dist/SHA256SUMS.txt -Encoding ascii

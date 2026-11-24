@@ -148,7 +148,7 @@ output_dir: 'D:/Obsidian/英语复习'
 
 ## 版本和构建
 
-功能更新和修复保存在 Git 提交记录，公开版本见 [CHANGELOG.md](CHANGELOG.md)。推送 `v*` 标签会触发 Windows 单元测试、二进制构建、打包内容检查和 GitHub 发布。发行前在 Windows 桌面环境运行下面的独立启动和导出测试。
+功能更新和修复保存在 Git 提交记录，公开版本见 [CHANGELOG.md](CHANGELOG.md)。推送 `v*` 标签后，GitHub 会运行测试、构建 Windows EXE、检查打包内容，并用该 EXE 从合成学习记录实际导出文件。验证通过后才发布。也可以在本机运行同一套构建和导出检查。
 
 ```powershell
 python -m pip install -r requirements.txt -r requirements-build.txt

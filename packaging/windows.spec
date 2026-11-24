@@ -29,6 +29,8 @@ notice_file.write_text('\n\n' + ('\n\n' + '=' * 72 + '\n\n').join(notices), enco
 analysis = Analysis(
     [str(project / 'packaging/windows_entry.py')],
     pathex=[str(project)],
+    # cryptography loads this compiled extension at runtime.
+    hiddenimports=['_cffi_backend'],
     datas=[
         (str(project / 'config.example.yaml'), '.'),
         (str(project / 'rules.yaml'), '.'),

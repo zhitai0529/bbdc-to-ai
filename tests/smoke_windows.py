@@ -20,6 +20,8 @@ def inspect_archive(executable: Path) -> None:
     required = {'config.example.yaml', 'rules.yaml', 'THIRD-PARTY-NOTICES.txt'}
     if missing := required.difference(archive.toc):
         raise RuntimeError(f'Missing packaged resources: {sorted(missing)}')
+    if not any(Path(name).name.startswith('_cffi_backend') and name.endswith('.pyd') for name in archive.toc):
+        raise RuntimeError('Missing _cffi_backend native extension')
     for name in archive.toc:
         entry = name.lower().replace('\\', '/')
         if (entry in {'config.yaml', 'protocol.json'} or entry.endswith(('.apk', '.db', '.mitm', '.pem', '.p12'))
