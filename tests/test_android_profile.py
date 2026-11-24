@@ -257,11 +257,13 @@ class AndroidProfileTests(unittest.TestCase):
         executable = self.folder / 'adb.exe'
         executable.touch()
         with patch('src.mumu_adb.NO_CONSOLE', 0x08000000), \
+                patch('src.mumu_adb.discover_mumu_manager') as discover, \
                 patch('src.mumu_adb.subprocess.run', return_value=Mock(returncode=0, stdout=b'ok')) as run:
             adb = Adb(str(executable), '127.0.0.1:16416')
             self.assertEqual(adb.run('shell', 'true'), b'ok')
             self.assertEqual(run.call_count, 2)
             self.assertTrue(all(call.kwargs['creationflags'] == 0x08000000 for call in run.call_args_list))
+            discover.assert_not_called()
 
     def test_dictionary_digest_checks_for_unmerged_writes(self) -> None:
         adb = object.__new__(Adb)

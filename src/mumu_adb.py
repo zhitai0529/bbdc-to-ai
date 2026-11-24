@@ -19,7 +19,8 @@ NO_CONSOLE = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 class Adb:
     def __init__(self, executable: str | None = None, serial: str | None = None, *,
                  manager: Path | None = None, android_version: str | None = None) -> None:
-        if manager is None:
+        # WSA and other explicitly selected devices may have no MuMu installation.
+        if manager is None and not (serial and executable and Path(executable).is_file()):
             manager = discover_mumu_manager()
         bundled = bundled_adb(manager, android_version) if manager is not None else None
         candidates = [executable, bundled, shutil.which('adb')]
