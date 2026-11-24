@@ -7,10 +7,15 @@ import os
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox
+import webbrowser
 
 from src.desktop_files import latest_review, load_output_dir, save_output_dir
 from src.desktop_view import ReviewActions, ReviewView
 from src.desktop_worker import ExportJob, ExportJobResult
+from src.mumu_sync import manager_path
+
+
+MUMU_DOWNLOAD_URL = 'https://mumu.163.com/'
 
 
 class ReviewWindow(ReviewView):
@@ -84,14 +89,34 @@ class ReviewWindow(ReviewView):
     def configure_mumu(self) -> None:
         if self.job is not None:
             return
+        if not manager_path().is_file():
+            self.offer_mumu_download()
+            return
         confirmed = messagebox.askokcancel(
             '一键配置 MuMu',
-            '助手会使用 MuMu 自带设置开启所选实例的 Root，并检查 ADB 调试连接。'
-            '如果实例需要重启，请先结束当前学习。\n\nWindows EXE 已内置 Python。',
+            '助手会开启所选 MuMu 实例的 Root，并检查 ADB 和不背单词版本。'
+            '需要重启时会关闭并重新打开该实例，请先结束当前学习。\n\n'
+            '配置通过后，在 MuMu 里登录不背单词，再回到助手点「查看已有复习」。',
             parent=self.root,
         )
         if confirmed:
             self.start_export(sync=False, setup=True)
+
+    def offer_mumu_download(self) -> None:
+        self.status.set('未找到 MuMu。安装后可再次点击「一键配置 MuMu」。')
+        if not messagebox.askyesno(
+            '需要安装 MuMu',
+            '没有在默认安装位置找到 MuMu。请下载并安装 MuMu，在 Android 15 实例中安装不背单词，'
+            '然后回到助手再次点击「一键配置 MuMu」。\n\n现在打开 MuMu 官网？',
+            default='no', parent=self.root,
+        ):
+            return
+        try:
+            if webbrowser.open(MUMU_DOWNLOAD_URL):
+                return
+        except (OSError, webbrowser.Error):
+            pass
+        messagebox.showwarning('打开 MuMu 官网', f'请在浏览器访问 {MUMU_DOWNLOAD_URL}。', parent=self.root)
 
     def start_export(self, *, sync: bool, setup: bool = False) -> None:
         if self.job is not None:
@@ -135,7 +160,19 @@ class ReviewWindow(ReviewView):
 
     def show_result(self, result: ExportJobResult) -> None:
         if result.setup:
-            self.status.set(result.message or '本次未完成配置，可以重新点击「一键配置 MuMu」。')
+            message = result.message or '本次未完成配置，可以重新点击「一键配置 MuMu」。'
+            self.status.set(message)
+            if result.status == 'configured':
+                messagebox.showinfo(
+                    '配置完成',
+                    'MuMu、ADB 和不背单词版本检查通过。\n\n'
+                    '1. 在 MuMu 中打开不背单词，确认已登录自己的账号。\n'
+                    '2. 回到助手，点击「查看已有复习」同步记录。\n'
+                    '3. 词表出现后，点击「复制全部内容」，或用「仅看本地文件」打开导出目录。',
+                    parent=self.root,
+                )
+            elif result.status == 'error':
+                messagebox.showwarning('MuMu 配置未完成', message, parent=self.root)
         elif result.status == 'exported' and result.output is not None:
             details = ''
             if result.sync and result.new_word_count is not None:

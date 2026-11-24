@@ -45,12 +45,31 @@ class DesktopTests(unittest.TestCase):
         window = ReviewWindow.__new__(ReviewWindow)
         window.root = Mock()
         window.job = None
-        with patch('src.desktop.messagebox.askokcancel', side_effect=[False, True]), \
+        with patch('src.desktop.manager_path') as manager, \
+                patch('src.desktop.messagebox.askokcancel', side_effect=[False, True]), \
                 patch.object(window, 'start_export') as start:
+            manager.return_value.is_file.return_value = True
             window.configure_mumu()
             start.assert_not_called()
             window.configure_mumu()
             start.assert_called_once_with(sync=False, setup=True)
+
+    def test_missing_mumu_offers_official_download_without_starting_setup(self) -> None:
+        window = ReviewWindow.__new__(ReviewWindow)
+        window.root = Mock()
+        window.status = Mock()
+        window.job = None
+        with patch('src.desktop.manager_path') as manager, \
+                patch('src.desktop.messagebox.askyesno', side_effect=[False, True]) as prompt, \
+                patch.object(window, 'start_export') as start, \
+                patch('src.desktop.webbrowser.open', return_value=True) as browser:
+            manager.return_value.is_file.return_value = False
+            window.configure_mumu()
+            browser.assert_not_called()
+            window.configure_mumu()
+            browser.assert_called_once_with('https://mumu.163.com/')
+            start.assert_not_called()
+            self.assertEqual(prompt.call_args.args[0], '需要安装 MuMu')
 
     def test_setup_job_keeps_review_preview_and_shows_result(self) -> None:
         window = ReviewWindow.__new__(ReviewWindow)
@@ -62,8 +81,20 @@ class DesktopTests(unittest.TestCase):
             window.start_export(sync=False, setup=True)
             job.assert_called_once_with(sync=False, setup=True)
             clear_preview.assert_not_called()
-        window.show_result(ExportJobResult('configured', False, message='连接已就绪。', setup=True))
+        with patch('src.desktop.messagebox.showinfo') as popup:
+            window.show_result(ExportJobResult('configured', False, message='连接已就绪。', setup=True))
+            self.assertEqual(popup.call_args.args[0], '配置完成')
+            self.assertIn('查看已有复习', popup.call_args.args[1])
+            self.assertIn('登录', popup.call_args.args[1])
         window.status.set.assert_called_with('连接已就绪。')
+
+    def test_setup_error_explains_the_failure(self) -> None:
+        window = ReviewWindow.__new__(ReviewWindow)
+        window.root = Mock()
+        window.status = Mock()
+        with patch('src.desktop.messagebox.showwarning') as popup:
+            window.show_result(ExportJobResult('error', False, message='请先安装不背单词。', setup=True))
+        popup.assert_called_once_with('MuMu 配置未完成', '请先安装不背单词。', parent=window.root)
 
     def test_folder_picker_updates_directory_and_refreshes_preview(self) -> None:
         window = ReviewWindow.__new__(ReviewWindow)
