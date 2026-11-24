@@ -19,11 +19,21 @@ ROOT_KEY = 'root_permission'
 
 
 def configure_mumu(session: Path | None = None, *, manager: Path | None = None) -> str:
+    def progress(message: str) -> None:
+        if session is not None:
+            try:
+                with (session / 'setup-progress.txt').open('a', encoding='utf-8') as stream:
+                    print(message, file=stream)
+            except OSError:
+                pass  # The optional desktop log must not interrupt configuration.
+
+    progress('正在查找 MuMu Android 实例。')
     manager, index, instance = select_mumu(manager=manager)
     android_version = str(instance.get('android_version', '')).split('.', 1)[0]
     if android_version and android_version != '15':
         raise SyncError('一键配置目前支持 MuMu Android 15。请打开 Android 15 实例后重试。')
     setting = ('setting', '--vmindex', index, '--key', ROOT_KEY)
+    progress('正在读取实例的 Root 开关。')
     current = run_manager(manager, *setting).get(ROOT_KEY)
     if current not in ('true', 'false', True, False):
         raise SyncError('这个 MuMu 版本未提供可读取的 Root 开关。请在 MuMu 设置中开启 Root。')
@@ -57,11 +67,15 @@ def configure_mumu(session: Path | None = None, *, manager: Path | None = None) 
             raise SyncError('MuMu 没有确认 Root 已开启。请检查模拟器设置后重试。')
 
     check_cancelled()
+    progress('正在连接 ADB。')
     adb = connect_mumu(manager, index, instance, session, launch_app=False)
+    progress('ADB 连接通过。')
     try:
         adb.require_root()
     except (RuntimeError, TimeoutExpired) as exc:
         raise SyncError('ADB 没有取得 Root 权限。请确认 MuMu 已应用 Root 设置，重启该实例后重试。') from exc
+    progress('Root 检查通过。')
+    progress('正在核对不背单词版本。')
     config = load_config()
     read_protocol(adb, config.root / '.local_setup/protocol.json')
     return 'MuMu 的 ADB、Root 和不背单词版本检查通过。请在 App 里登录，再点「查看已有复习」。'

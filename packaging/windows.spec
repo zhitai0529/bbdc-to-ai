@@ -27,7 +27,8 @@ metadata = VSVersionInfo(
 
 notices = [project.joinpath('LICENSE').read_text(encoding='utf-8')]
 for package in ('pyinstaller', 'PyYAML', 'rich', 'filelock', 'cryptography', 'pyelftools',
-                'tzdata', 'cffi', 'markdown-it-py', 'pygments', 'mdurl', 'pycparser'):
+                'tzdata', 'cffi', 'markdown-it-py', 'pygments', 'mdurl', 'pycparser',
+                'pywebview', 'pythonnet', 'clr-loader', 'bottle', 'proxy-tools', 'pyperclip'):
     dist = distribution(package)
     for entry in sorted(dist.files or ()):
         if '.dist-info' in entry.parts[0] and entry.name.upper().startswith(
@@ -40,6 +41,7 @@ for title, source in [('Python', python_home / 'LICENSE.txt'),
                       ('Tcl/Tk', python_home / 'tcl/tk8.6/license.terms')]:
     if source.is_file():
         notices.append(f'{title}\n\n' + source.read_text(encoding='utf-8', errors='replace'))
+notices.append((project / 'frontend' / 'NOTICES.txt').read_text(encoding='utf-8'))
 notice_file = Path(DISTPATH) / 'THIRD-PARTY-NOTICES.txt'
 notice_file.parent.mkdir(parents=True, exist_ok=True)
 notice_file.write_text('\n\n' + ('\n\n' + '=' * 72 + '\n\n').join(notices), encoding='utf-8')
@@ -52,6 +54,8 @@ analysis = Analysis(
     datas=[
         (str(project / 'config.example.yaml'), '.'),
         (str(project / 'rules.yaml'), '.'),
+        *((str(project / 'frontend' / name), 'frontend') for name in ('index.html', 'bundle.js', 'bundle.css')),
+        *collect_data_files('webview', subdir='js'),
         (str(notice_file), '.'),
         *collect_data_files('tzdata'),
     ],

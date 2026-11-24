@@ -6,3 +6,5 @@ tzdata>=2024.1
 filelock>=3.16,<4
 cryptography>=43,<45
 pyelftools>=0.31,<1
+pywebview==6.1; sys_platform == "win32"
+pyperclip>=1.9,<2; sys_platform == "win32"

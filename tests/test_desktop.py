@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 import yaml
 
 from src.config import PROJECT_ROOT, load_config
-from src.desktop import ReviewWindow, main
+from src.desktop import ReviewWindow, legacy_main as main
 from src.desktop_files import latest_review, load_output_dir, save_output_dir
 from src.desktop_mumu import MumuDialogs
 from src.desktop_worker import ExportJob, ExportJobResult, parse_result

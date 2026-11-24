@@ -93,6 +93,7 @@ def main() -> None:
         assert Path(reply['output']) == destination
         assert '| opaque | 不透明的 | 复习不会 | 1 |' in destination.read_text(encoding='utf-8')
         assert not (config.output_dir / f'{day}_unknown_codes.md').exists()
+        subprocess.run([str(executable), '--check-dashboard'], env=env, cwd=area, timeout=65, check=True)
     print('Standalone EXE smoke test passed.')
 
 

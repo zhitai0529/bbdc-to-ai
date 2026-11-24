@@ -26,11 +26,23 @@ jobs:
           cache: pip
       - name: Install project and build dependencies
         run: python -m pip install -r requirements.txt -r requirements-build.txt
+      - name: Prepare WebView2 for desktop tests
+        shell: pwsh
+        run: |
+          $client = 'Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          if (!(Test-Path "HKLM:\SOFTWARE\WOW6432Node\$client") -and !(Test-Path "HKCU:\SOFTWARE\$client")) {
+            $installer = Join-Path $env:RUNNER_TEMP 'MicrosoftEdgeWebview2Setup.exe'
+            Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $installer
+            $install = Start-Process -FilePath $installer -ArgumentList '/silent','/install' -WindowStyle Hidden -Wait -PassThru
+            if ($install.ExitCode -ne 0) { throw "WebView2 setup exited with $($install.ExitCode)" }
+          }
       - name: Run tests
         shell: pwsh
         run: |
           Copy-Item config.example.yaml config.yaml
           python -m unittest discover -s tests -q
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m tests.smoke_dashboard
       - name: Build executable
         shell: pwsh
         run: |

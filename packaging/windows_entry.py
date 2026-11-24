@@ -42,6 +42,30 @@ def run_worker(module: str, filename: Path, options: list[str]) -> int:
 
 def main() -> int:
     args = sys.argv[1:]
+    if args == ['--check-dashboard']:
+        # Release smoke test uses a disposable LOCALAPPDATA. Do not install shortcuts.
+        import time
+        from src.dashboard import DashboardAPI, open_window
+        ok = False
+
+        def verify(window):
+            nonlocal ok
+            try:
+                deadline = time.monotonic() + 20
+                while time.monotonic() < deadline:
+                    if window.evaluate_js("document.querySelectorAll('#kpis canvas').length === 4 && "
+                                          "document.querySelector('#version').textContent.length > 1 && "
+                                          "document.querySelector('#preview').hidden"):
+                        window.evaluate_js("document.querySelector('[data-view=preview]').click()")
+                        ok = window.evaluate_js("!document.querySelector('#preview').hidden && "
+                                                "document.querySelector('#overview').hidden")
+                        break
+                    time.sleep(.1)
+            finally:
+                window.destroy()
+
+        open_window(DashboardAPI(), verify)
+        return 0 if ok else 1
     if args[:1] == ['--run-worker']:
         if len(args) < 3:
             return 2

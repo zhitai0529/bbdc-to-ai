@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
+    />
+    <title>不背单词复习助手</title>
+    <style>
+      /* bundled css */
+    </style>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brandmark"><i data-lucide="book-open"></i></span>
+        <div><strong>不背单词复习助手</strong><small id="version"></small></div>
+      </div>
+      <nav aria-label="主导航">
+        <button data-view="overview" aria-current="page">
+          <i data-lucide="layout-dashboard"></i>复习总览
+        </button>
+        <button data-view="preview">
+          <i data-lucide="file-text"></i>复习预览
+        </button>
+        <button data-view="history">
+          <i data-lucide="history"></i>历史与惯犯词
+        </button>
+        <button data-view="settings">
+          <i data-lucide="settings-2"></i>MuMu 与设置
+        </button>
+      </nav>
+      <div class="sidebottom">
+        <section class="sidecard">
+          <div class="flex items-center justify-between">
+            <span>今日掌握率</span><b id="sideRate">—</b>
+          </div>
+          <progress max="100" value="0" id="rateBar"></progress
+          ><small id="latest">App 最新记录时间 · —</small>
+        </section>
+        <button class="folderShortcut" data-action="open">
+          <i data-lucide="folder-open"></i
+          ><span><small>导出目录</small><b id="shortPath">—</b></span
+          ><i data-lucide="chevron-right"></i>
+        </button>
+      </div>
+    </aside>
+    <main>
+      <header class="toolbar">
+        <div class="intro">
+          <h1 id="title">今日复习看板</h1>
+          <p>把需要再练的单词整理成 AI 复习提示词</p>
+        </div>
+        <div class="actions">
+          <label class="datebox"
+            ><i data-lucide="calendar-days"></i
+            ><select id="dates" aria-label="学习日期"></select
+          ></label>
+          <button data-action="sync">
+            <i data-lucide="refresh-cw"></i>同步 MuMu</button
+          ><button data-action="export">
+            <i data-lucide="download"></i>导出今日复习
+          </button>
+          <button class="primary" data-action="copy">
+            <i data-lucide="copy"></i><span>复制全部内容</span>
+          </button>
+        </div>
+      </header>
+      <div class="status" role="status">
+        <span id="dot"></span><span id="status">正在读取本地学习记录…</span>
+      </div>
+
+      <section id="overview" class="view">
+        <div id="kpis" class="kpis"></div>
+        <div class="gridrow upper">
+          <article class="panel">
+            <div class="panelhead">
+              <h2><i data-lucide="activity"></i>每日词量与纠结词趋势</h2>
+              <select id="volumeRange" aria-label="词量趋势范围">
+                <option value="7">近 7 天</option>
+                <option value="30">近 30 天</option>
+              </select>
+            </div>
+            <div class="legend">
+              <span><em></em>去重词汇</span
+              ><span><em class="blue"></em>顽固与模糊词</span>
+            </div>
+            <div class="chartbox">
+              <canvas id="volume" aria-label="每日词量趋势"></canvas>
+            </div>
+          </article>
+          <article class="panel">
+            <div class="panelhead">
+              <h2><i data-lucide="flame"></i>高频错词速览</h2>
+              <button class="link" data-action="all">
+                查看全部 <i data-lucide="chevron-right"></i>
+              </button>
+            </div>
+            <div id="ranking"></div>
+          </article>
+        </div>
+        <div class="gridrow lower">
+          <article class="panel">
+            <div class="panelhead">
+              <h2><i data-lucide="calendar-range"></i>近期学习热力图</h2>
+              <small>近 24 周</small>
+            </div>
+            <div id="heat"></div>
+            <div class="heatfoot">
+              <span id="activeDays"></span
+              ><span>少 <i></i><i></i><i></i><i></i><i></i> 多</span>
+            </div>
+          </article>
+          <article class="panel">
+            <div class="panelhead">
+              <h2><i data-lucide="chart-no-axes-combined"></i>掌握率趋势</h2>
+              <select id="rateRange" aria-label="掌握率趋势范围">
+                <option value="7">近 7 天</option>
+                <option value="30" selected>近 30 天</option>
+              </select>
+            </div>
+            <div class="legend">
+              <span><em></em>已剔除熟词 / 当日去重词汇</span>
+            </div>
+            <div class="chartbox compact">
+              <canvas id="rate" aria-label="掌握率趋势"></canvas>
+            </div>
+          </article>
+        </div>
+      </section>
+      <section id="preview" class="view panel" hidden>
+        <div class="panelhead">
+          <h2><i data-lucide="book-open-text"></i>每日复习 Prompt</h2>
+          <div class="seg">
+            <button id="renderMode" aria-pressed="true">渲染视图</button
+            ><button id="sourceMode" aria-pressed="false">源码编辑</button>
+          </div>
+        </div>
+        <div id="pills" class="pills"></div>
+        <article id="markdown" class="markdown"></article>
+        <div id="editor" hidden>
+          <textarea
+            id="source"
+            aria-label="Markdown 源码"
+            spellcheck="false"
+          ></textarea
+          ><button class="primary" data-action="save">
+            <i data-lucide="save"></i>保存修改
+          </button>
+        </div>
+      </section>
+      <section id="history" class="view stack" hidden>
+        <article class="panel">
+          <div class="panelhead">
+            <h2><i data-lucide="repeat-2"></i>跨天反复模糊或答错</h2>
+            <small id="windowDays"></small>
+          </div>
+          <div id="repeats"></div>
+        </article>
+        <article class="panel">
+          <div class="panelhead">
+            <h2><i data-lucide="flame"></i>当日顽固词</h2>
+          </div>
+          <div id="hardList"></div>
+        </article>
+        <article class="panel">
+          <div class="panelhead">
+            <h2><i data-lucide="list-filter"></i>未知编码核对</h2>
+            <small>按「复习不会」纳入复习</small>
+          </div>
+          <div id="codes"></div>
+        </article>
+      </section>
+      <section id="settings" class="view stack" hidden>
+        <article class="panel">
+          <div class="panelhead">
+            <h2><i data-lucide="monitor"></i>MuMu 模拟器环境</h2>
+            <button data-action="setup">
+              <i data-lucide="settings-2"></i>一键配置 MuMu
+            </button>
+          </div>
+          <div class="checks">
+            <span id="adb">ADB · 尚未检查</span
+            ><span id="rootStatus">Root · 尚未检查</span>
+          </div>
+          <pre id="logs" role="log">等待配置或同步。</pre>
+        </article>
+        <article class="panel">
+          <div class="panelhead">
+            <h2><i data-lucide="folder-open"></i>导出保存位置</h2>
+          </div>
+          <input id="path" readonly aria-label="完整导出目录" />
+          <div class="actions">
+            <button data-action="change">更改保存位置</button
+            ><button data-action="open">打开导出目录</button>
+          </div>
+        </article>
+      </section>
+    </main>
+    <div id="toast" role="status" hidden></div>
+    <dialog id="modal">
+      <h2 id="modalTitle"></h2>
+      <p id="modalBody"></p>
+      <div id="choices" class="actions"></div>
+    </dialog>
+    <script>
+      /* bundled js */
+    </script>
+  </body>
+</html>

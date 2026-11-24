@@ -178,7 +178,7 @@ class ReviewWindow(ReviewView):
         self.job.request_cancel()
 
 
-def main(argv: Sequence[str] | None = None, *, startup_warning: str | None = None) -> None:
+def legacy_main(argv: Sequence[str] | None = None, *, startup_warning: str | None = None) -> None:
     parser = argparse.ArgumentParser(description='不背单词中文复习助手')
     parser.add_argument('--export', action='store_true', help='打开后使用本机记录导出今日复习')
     parser.add_argument('--open-latest', action='store_true', help='打开本地最近的复习文件（默认）')
@@ -198,6 +198,17 @@ def main(argv: Sequence[str] | None = None, *, startup_warning: str | None = Non
     if startup_warning:
         root.after_idle(window.status.set, startup_warning)
     root.mainloop()
+
+
+def main(argv: Sequence[str] | None = None, *, startup_warning: str | None = None) -> None:
+    try:
+        from webview.platforms.winforms import renderer
+        if renderer != 'edgechromium':
+            raise RuntimeError('此电脑尚未安装 Microsoft Edge WebView2 Runtime')
+        from src.dashboard import main as open_dashboard
+        open_dashboard(argv, startup_warning=startup_warning)
+    except (ImportError, OSError, RuntimeError) as exc:
+        legacy_main(argv, startup_warning=f'已进入兼容界面。打开深色看板需要 WebView2：{exc}')
 
 
 if __name__ == '__main__':
