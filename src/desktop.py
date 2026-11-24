@@ -22,12 +22,12 @@ class ReviewWindow(ReviewView):
         self.content = ''
         root.protocol('WM_DELETE_WINDOW', self.close)
         super().__init__(root, self.output_dir, ReviewActions(
-            sync=self.sync_and_view, export=self.export, copy=self.copy,
+            sync=self.sync_and_view, setup=self.configure_mumu, export=self.export, copy=self.copy,
             change_folder=self.change_folder, open_folder=self.open_folder,
         ))
 
     def open_latest(self, status: str = '正在查看已保存的复习', *,
-                    empty_status: str = '此目录还没有复习文件。点「查看已有复习」可同步并导出。') -> bool:
+                    empty_status: str = '此目录还没有复习文件。首次使用可先点「一键配置 MuMu」，再点「查看已有复习」。') -> bool:
         try:
             path = latest_review(self.output_dir)
         except OSError:
@@ -81,19 +81,34 @@ class ReviewWindow(ReviewView):
     def sync_and_view(self) -> None:
         self.start_export(sync=True)
 
-    def start_export(self, *, sync: bool) -> None:
+    def configure_mumu(self) -> None:
+        if self.job is not None:
+            return
+        confirmed = messagebox.askokcancel(
+            '一键配置 MuMu',
+            '助手会使用 MuMu 自带设置开启所选实例的 Root，并检查 ADB 调试连接。'
+            '如果实例需要重启，请先结束当前学习。\n\nWindows EXE 已内置 Python。',
+            parent=self.root,
+        )
+        if confirmed:
+            self.start_export(sync=False, setup=True)
+
+    def start_export(self, *, sync: bool, setup: bool = False) -> None:
         if self.job is not None:
             return
         try:
-            self.job = ExportJob(sync=sync)
+            self.job = ExportJob(sync=sync, setup=setup)
         except OSError as exc:
             self.status.set('无法启动后台任务。')
             messagebox.showerror('启动失败', str(exc), parent=self.root)
             return
         self.set_busy(True)
-        self.clear_preview()
-        self.status.set('正在打开 MuMu 并同步学习记录，请稍候。' if sync
-                        else '正在用本机记录导出今日复习，请稍候。')
+        if setup:
+            self.status.set('正在配置 MuMu 并检查连接，请稍候。')
+        else:
+            self.clear_preview()
+            self.status.set('正在打开 MuMu 并同步学习记录，请稍候。' if sync
+                            else '正在用本机记录导出今日复习，请稍候。')
         self.root.after(200, self.poll)
 
     def poll(self) -> None:
@@ -111,7 +126,7 @@ class ReviewWindow(ReviewView):
             return
         self.set_busy(False)
         self.show_result(result)
-        if result.sync:
+        if result.sync or result.setup:
             # MuMu brings its window forward when it launches the app.
             self.root.attributes('-topmost', True)
             self.root.lift()
@@ -119,7 +134,9 @@ class ReviewWindow(ReviewView):
             self.root.after(1500, lambda: self.root.attributes('-topmost', False))
 
     def show_result(self, result: ExportJobResult) -> None:
-        if result.status == 'exported' and result.output is not None:
+        if result.setup:
+            self.status.set(result.message or '本次未完成配置，可以重新点击「一键配置 MuMu」。')
+        elif result.status == 'exported' and result.output is not None:
             details = ''
             if result.sync and result.new_word_count is not None:
                 details = f'本次新增已保存词 {result.new_word_count} 个。'

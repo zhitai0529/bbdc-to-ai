@@ -20,7 +20,7 @@ from src.runtime import data_directory, is_packaged
 
 @dataclass(frozen=True)
 class ExportJobResult:
-    status: Literal['exported', 'no_records', 'error', 'cancelled']
+    status: Literal['exported', 'no_records', 'configured', 'error', 'cancelled']
     sync: bool
     output: Path | None = None
     message: str | None = None
@@ -29,11 +29,13 @@ class ExportJobResult:
     new_word_count: int | None = None
     target_word_count: int | None = None
     latest_saved_at: datetime | None = None
+    setup: bool = False
 
 
-def parse_result(returncode: int, output_text: str, *, sync: bool) -> ExportJobResult:
+def parse_result(returncode: int, output_text: str, *, sync: bool, setup: bool = False) -> ExportJobResult:
     reply = json.loads(output_text)
-    expected_status = {0: 'exported', 1: 'error', 2: 'no_records'}.get(returncode)
+    statuses = {0: 'configured', 1: 'error'} if setup else {0: 'exported', 1: 'error', 2: 'no_records'}
+    expected_status = statuses.get(returncode)
     if expected_status is None or not isinstance(reply, dict) or reply.get('status') != expected_status:
         raise ValueError('导出程序返回了无效的结果')
 
@@ -57,7 +59,8 @@ def parse_result(returncode: int, output_text: str, *, sync: bool) -> ExportJobR
         return ExportJobResult('no_records', sync, day=day, last_day=last_day)
 
     message = reply.get('message')
-    return ExportJobResult('error', sync, message=message if isinstance(message, str) else None)
+    return ExportJobResult('configured' if expected_status == 'configured' else 'error', sync,
+                           message=message if isinstance(message, str) else None, setup=setup)
 
 
 def python_command() -> tuple[str, dict[str, str]]:
@@ -73,10 +76,11 @@ def python_command() -> tuple[str, dict[str, str]]:
 
 
 class ExportJob:
-    def __init__(self, *, sync: bool) -> None:
+    def __init__(self, *, sync: bool, setup: bool = False) -> None:
         self.sync = sync
+        self.setup = setup
         self.cancellation: Future[ExportJobResult] | None = None
-        module = 'src.mumu' if sync else 'src.offline_export'
+        module = 'src.mumu_setup' if setup else 'src.mumu' if sync else 'src.offline_export'
         packaged = is_packaged()
         # Keep the subprocess's temporary database copies available for parent cleanup.
         self.scratch = TemporaryDirectory(prefix='bbdc-desktop-', ignore_cleanup_errors=True)
@@ -91,7 +95,9 @@ class ExportJob:
                 command = [executable, '-m', module, '--json']
                 self.output = TemporaryFile(dir=self.scratch.name)
             if sync:
-                command.extend(('--sync-mumu', '--latest', '--scratch-dir', self.scratch.name))
+                command.extend(('--sync-mumu', '--latest'))
+            if sync or setup:
+                command.extend(('--scratch-dir', self.scratch.name))
             self.process = subprocess.Popen(
                 command, cwd=data_directory() if packaged else PROJECT_ROOT,
                 stdout=self.output if self.output is not None else subprocess.DEVNULL,
@@ -118,9 +124,10 @@ class ExportJob:
             else:
                 self.output.seek(0)
                 result = self.output.read().decode('utf-8')
-            return parse_result(returncode, result, sync=self.sync)
+            return parse_result(returncode, result, sync=self.sync, setup=self.setup)
         except (OSError, ValueError) as exc:
-            return ExportJobResult('error', self.sync, message=f'未收到导出结果（{type(exc).__name__}）。')
+            return ExportJobResult('error', self.sync, message=f'未收到后台任务结果（{type(exc).__name__}）。',
+                                   setup=self.setup)
         finally:
             self.cleanup()
 
@@ -134,17 +141,17 @@ class ExportJob:
             try:
                 self.cancel()
             except Exception as exc:
-                result = ExportJobResult('error', self.sync, message=f'停止后台任务时出错：{exc}')
+                result = ExportJobResult('error', self.sync, message=f'停止后台任务时出错：{exc}', setup=self.setup)
             else:
                 result = ExportJobResult('error' if timeout_message else 'cancelled', self.sync,
-                                         message=timeout_message)
+                                         message=timeout_message, setup=self.setup)
             pending.set_result(result)
 
         Thread(target=cancel_in_background, daemon=False).start()
 
     def cancel(self) -> None:
         try:
-            if self.sync:
+            if self.sync or self.setup:
                 from src.mumu_sync import cancel_mumu_sync
                 cancel_mumu_sync(Path(self.scratch.name), self.stop_process)
             else:

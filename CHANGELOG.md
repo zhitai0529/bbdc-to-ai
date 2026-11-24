@@ -1,5 +1,10 @@
 # 更新记录
 
+## 1.1.0 — 2026-11-24
+
+- 桌面助手新增「一键配置 MuMu」，使用 MuMu 自带的管理器开启当前 Android 15 实例的 Root，并检查 ADB 和不背单词版本。
+- EXE 已包含 Python，只需准备 MuMu 和已登录的不背单词。
+
 ## 1.0.3 — 2026-11-24
 
 - 修复 GitHub 下载的 Windows EXE 缺少 `_cffi_backend` 导致导出失败的问题。

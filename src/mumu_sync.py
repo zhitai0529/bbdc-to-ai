@@ -65,7 +65,7 @@ def cancel_mumu_sync(session: Path, stop_worker: Callable[[], None]) -> None:
             run_manager(manager, 'control', '-v', index, 'shutdown')
 
 
-def open_mumu(session: Path | None = None) -> Adb:
+def select_mumu() -> tuple[Path, str, dict]:
     manager = manager_path()
     if not manager.is_file():
         raise SyncError('找不到 MuMu 模拟器。请检查 MuMu 是否已安装。')
@@ -74,9 +74,16 @@ def open_mumu(session: Path | None = None) -> Adb:
     running = [entry for entry in installed if entry.get('is_process_started')]
     choices = running or installed
     if len(choices) != 1:
-        raise SyncError('请保留一个要同步的 MuMu 实例，再点「查看已有复习」。')
+        raise SyncError('请在 MuMu 中只运行一个要使用的实例，然后重试。')
     instance = choices[0]
     index = str(instance['index'])
+    if not re.fullmatch(r'[0-9]+', index):
+        raise SyncError('无法识别 MuMu 实例的编号。')
+    return manager, index, instance
+
+
+def connect_mumu(manager: Path, index: str, instance: dict, session: Path | None, *,
+                 launch_app: bool = True) -> Adb:
     state = instance
     launch_requested = False
     deadline = time.monotonic() + 90
@@ -100,11 +107,17 @@ def open_mumu(session: Path | None = None) -> Adb:
             else:
                 if not packages.startswith('package:'):
                     raise SyncError('这个 MuMu 实例未安装不背单词。')
-                run_manager(manager, 'control', '-v', index, 'app', 'launch', '-pkg', PACKAGE)
+                if launch_app:
+                    run_manager(manager, 'control', '-v', index, 'app', 'launch', '-pkg', PACKAGE)
                 return adb
         time.sleep(1)
         state = run_manager(manager, 'info', '-v', index)
-    raise SyncError('MuMu 启动超时。请稍后再点「查看已有复习」。')
+    raise SyncError('连接 MuMu 的 ADB 超时。请确认模拟器已进入 Android 首页，然后重试。')
+
+
+def open_mumu(session: Path | None = None) -> Adb:
+    manager, index, instance = select_mumu()
+    return connect_mumu(manager, index, instance, session)
 
 
 def read_screen(adb: Adb) -> list[ET.Element]:

@@ -11,7 +11,7 @@ from src.runtime import prepare_external_programs
 
 
 def run_worker(module: str, filename: Path, options: list[str]) -> int:
-    if module not in {'src.mumu', 'src.offline_export'}:
+    if module not in {'src.mumu', 'src.mumu_setup', 'src.offline_export'}:
         return 2
     with filename.open('x', encoding='utf-8') as result, \
             filename.with_suffix('.log').open('x', encoding='utf-8') as log, \
@@ -19,6 +19,10 @@ def run_worker(module: str, filename: Path, options: list[str]) -> int:
         try:
             if module == 'src.mumu':
                 from src.mumu import main as export
+
+                prepare_external_programs()
+            elif module == 'src.mumu_setup':
+                from src.mumu_setup import main as export
 
                 prepare_external_programs()
             else:

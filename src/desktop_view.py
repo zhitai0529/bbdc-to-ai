@@ -22,6 +22,7 @@ FONT = 'Microsoft YaHei UI'
 @dataclass(frozen=True)
 class ReviewActions:
     sync: Callable[[], None]
+    setup: Callable[[], None]
     export: Callable[[], None]
     copy: Callable[[], None]
     change_folder: Callable[[], None]
@@ -113,6 +114,7 @@ class ReviewView:
         self._label(sidebar, '学习记录', size=12, bold=True).pack(anchor='w', pady=(0, 9))
         self.open_button = self._action(sidebar, '查看已有复习', '打开 MuMu 并同步学习记录',
                                         actions.sync, primary=True)
+        self.setup_button = self._action(sidebar, '一键配置 MuMu', '开启 Root 并检查连接', actions.setup)
         self.export_button = self._action(sidebar, '导出今日复习', '用本机已有记录生成文件', actions.export)
         self.saved_button = self._action(sidebar, '仅看本地文件', '在资源管理器打开导出目录', actions.open_folder)
 
@@ -190,7 +192,7 @@ class ReviewView:
 
     def set_busy(self, busy: bool) -> None:
         state = 'disabled' if busy else 'normal'
-        for button in (self.export_button, self.open_button, self.change_button):
+        for button in (self.export_button, self.open_button, self.setup_button, self.change_button):
             button.configure(state=state)
         if busy:
             self.progress.pack(side='right', padx=(12, 0))

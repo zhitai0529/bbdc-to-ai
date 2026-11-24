@@ -12,7 +12,9 @@
 
 在 [GitHub Releases](https://github.com/zhitai0529/bbdc-to-ai/releases) 下载 `bbdc-to-ai-windows-x64.exe`，双击即可打开。EXE 自带 Python 运行环境。
 
-从 App 同步需要 Windows x64、可用的 MuMu 和已登录的不背单词。设备读取目前只验证了 **MuMu Android 15、不背单词 5.11.8 x86**，需要该 MuMu 实例已启用 root 和 ADB。EXE 不包含模拟器或 APK。已有本机记录时，可以直接离线导出。
+从 App 同步需要 Windows x64、MuMu Android 15 和已登录的不背单词 **5.11.8 x86**。可从 [MuMu 官网](https://mumu.163.com/) 安装模拟器。EXE 不包含模拟器或 APK。已有本机记录时，可以直接离线导出。
+
+首次使用请在 MuMu 安装并登录不背单词，回到助手点 **「一键配置 MuMu」**。助手会用 MuMu 自带的管理器开启当前实例的 Root，必要时重启该实例，再检查 ADB 连接、Root 是否生效和 App 是否为受支持的版本。配置成功后点「查看已有复习」。已配置好的实例可以直接同步。
 
 ## 每天怎么用
 

@@ -59,6 +59,16 @@ def main() -> None:
             return json.loads(reply_path.read_text(encoding='utf-8'))
 
         assert run_worker('empty', 2)['status'] == 'no_records'
+        setup_reply = area / 'setup.json'
+        missing_mumu_dir = area / '无模拟器'
+        missing_mumu_dir.mkdir()
+        result = subprocess.run(
+            [str(executable), '--run-worker', 'src.mumu_setup', str(setup_reply)],
+            cwd=area, env={**env, 'ProgramFiles': str(missing_mumu_dir)}, timeout=60,
+        )
+        assert result.returncode == 1
+        setup = json.loads(setup_reply.read_text(encoding='utf-8'))
+        assert setup['status'] == 'error' and '找不到 MuMu' in setup['message']
         config = load_config(app_data / 'config.yaml')
         assert config.output_dir == app_data / 'output'
         assert config.output_dir.is_relative_to(profile)
