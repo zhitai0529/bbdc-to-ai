@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import base64
-import json
-import os
 from pathlib import Path
-import subprocess
 import sys
 from tempfile import TemporaryDirectory
 import unittest
 
-from src.windows_shortcuts import update_desktop_shortcuts
+from src.windows_shortcuts import _com, read_link, update_desktop_shortcuts, write_link
 
 
 @unittest.skipUnless(sys.platform == 'win32', 'Requires Windows Shell shortcuts')
@@ -28,28 +24,12 @@ class WindowsShortcutTests(unittest.TestCase):
             executable.touch()
 
     def shell_shortcut(self, name: str, target: Path | None = None, arguments: str = '') -> tuple[Path, str]:
-        script = r'''
-$ErrorActionPreference = 'Stop'
-[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
-$shell = New-Object -ComObject WScript.Shell
-$shortcut = $shell.CreateShortcut($env:BBDC_TEST_LINK)
-if ($env:BBDC_TEST_TARGET) {
-    $shortcut.TargetPath = $env:BBDC_TEST_TARGET
-    $shortcut.Arguments = $env:BBDC_TEST_ARGUMENTS
-    $shortcut.Save()
-}
-@($shortcut.TargetPath, $shortcut.Arguments) | ConvertTo-Json -Compress
-'''
-        powershell = Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
-        command = base64.b64encode(script.encode('utf-16-le')).decode('ascii')
-        result = subprocess.run(
-            [str(powershell), '-NoProfile', '-NonInteractive', '-EncodedCommand', command],
-            env={**os.environ, 'BBDC_TEST_LINK': str(self.desktop / name),
-                 'BBDC_TEST_TARGET': str(target) if target else '', 'BBDC_TEST_ARGUMENTS': arguments},
-            capture_output=True, encoding='utf-8-sig', timeout=20, check=True,
-        )
-        executable, args = json.loads(result.stdout)
-        return Path(executable), args
+        path = self.desktop / name
+        with _com() as ole:
+            if target is not None:
+                write_link(ole, path, target, arguments)
+            executable, args, _ = read_link(ole, path)
+        return executable, args
 
     def test_retargets_owned_link_and_keeps_unrelated_link(self) -> None:
         owned = '我的不背单词.lnk'

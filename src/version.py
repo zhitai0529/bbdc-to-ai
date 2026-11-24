@@ -1,3 +1,3 @@
 """Application version shown on desktop and in the Windows executable."""
 
-VERSION = '1.2.0'
+VERSION = '1.2.1'

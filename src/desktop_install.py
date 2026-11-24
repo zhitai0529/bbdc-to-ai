@@ -98,11 +98,10 @@ def read_installed_versions(versions: Path) -> dict[str, tuple[Path, tuple[int, 
     return installed
 
 
-def remove_old_downloads(directories: Iterable[Path], previous_targets: Iterable[Path],
-                         outdated: set[tuple[int, str]], keep: Path) -> set[int]:
+def remove_old_downloads(directories: Iterable[Path], outdated: set[tuple[int, str]], keep: Path) -> set[int]:
     sizes = {size for size, _ in outdated}
     locked_sizes: set[int] = set()
-    candidates = set(previous_targets)
+    candidates: set[Path] = set()
     for directory in directories:
         try:
             candidates.update(directory.iterdir())
@@ -152,7 +151,7 @@ def maintain_installation(source: Path) -> Path:
             atomic_write(target.with_name(RECEIPT), current[1] + '\n')
         else:
             _, current = installed[latest]
-        previous_targets = update_desktop_shortcuts(target)
+        update_desktop_shortcuts(target)
 
         old: dict[Path, int] = {}
         outdated = set(LEGACY_RELEASES.items()) - {current}
@@ -162,7 +161,7 @@ def maintain_installation(source: Path) -> Path:
             outdated.add(digest)
             old[path] = digest[0]
         outdated.discard(current)
-        locked_sizes = remove_old_downloads(download_directories(), previous_targets, outdated, source)
+        locked_sizes = remove_old_downloads(download_directories(), outdated, source)
         for path, size in old.items():
             if path == source or size in locked_sizes:
                 continue

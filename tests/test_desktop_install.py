@@ -1,9 +1,10 @@
 from pathlib import Path
+import os
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import Mock, patch
 
-from src.desktop_install import executable_digest, maintain_installation
+from src.desktop_install import copy_executable, executable_digest, maintain_installation
 
 
 class DesktopInstallTests(unittest.TestCase):
@@ -110,3 +111,15 @@ class DesktopInstallTests(unittest.TestCase):
         self.run_release(new, '1.2.1')
         self.assertFalse(older.exists())
         self.assertFalse(first.exists())
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows alternate data streams')
+    def test_copy_preserves_windows_download_marker(self) -> None:
+        source = self.downloads / 'download.exe'
+        target = self.root / 'installed' / 'bbdc-to-ai.exe'
+        zone_info = '[ZoneTransfer]\nZoneId=3'
+        source.write_bytes(b'test executable')
+        with open(str(source) + ':Zone.Identifier', 'w', encoding='ascii') as marker:
+            marker.write(zone_info)
+        copy_executable(source, target)
+        with open(str(target) + ':Zone.Identifier', encoding='ascii') as marker:
+            self.assertEqual(marker.read(), zone_info)
