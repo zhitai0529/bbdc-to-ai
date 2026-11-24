@@ -201,6 +201,10 @@ def legacy_main(argv: Sequence[str] | None = None, *, startup_warning: str | Non
 
 
 def main(argv: Sequence[str] | None = None, *, startup_warning: str | None = None) -> None:
+    from src.flutter_window import binary, run_window
+    if binary().is_file():
+        run_window(argv, startup_warning=startup_warning)
+        return
     try:
         from webview.platforms.winforms import renderer
         if renderer != 'edgechromium':

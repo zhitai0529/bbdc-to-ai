@@ -8,8 +8,6 @@
 
 学习记录在本机处理。你决定是否把生成的提示词复制给 AI。想先看看导出内容，可以打开这份 [合成示例](examples/synthetic_review.md)。
 
-![复习总览界面，使用合成学习记录](examples/dashboard.png)
-
 ## 下载 Windows 版
 
 下载 `bbdc-to-ai-windows-x64.exe` 后双击运行。适用于 Windows x64，EXE 内置 Python，无需另行安装。 [下载最新版 EXE](https://github.com/zhitai0529/bbdc-to-ai/releases/latest/download/bbdc-to-ai-windows-x64.exe)
@@ -46,7 +44,7 @@ EXE 首次运行会在 `%LOCALAPPDATA%\bbdc-to-ai` 创建独立配置和缓存�
 
 首页展示学习词量、顽固词排行、24 周热力图和熟词占比。图表来自本机 SQLite 与每日缓存，缺记录的日期留空。侧栏的「历史与惯犯词」可查看跨天重复出现的词和当日未知编码。完整 Prompt 在「复习预览」中，修改后点「保存修改」写回复习文件；重新导出会按学习记录重新生成正文。
 
-深色看板使用系统的 Microsoft Edge WebView2 Runtime，图表、图标和 Markdown 渲染随 EXE 提供，可离线使用。没有 WebView2 的电脑会打开兼容界面。[WebView2 官方下载](https://developer.microsoft.com/microsoft-edge/webview2/)
+Windows 版使用 Flutter 原生 Material 3 界面，主题跟随系统明暗设置。宽窗口显示完整导航，窄窗口收起侧栏，图表改为纵向排列。点击热力图中有记录的日期即可查看当天数据。复习预览支持 Markdown 阅读与源码编辑，在宽窗口编辑时可左右对照。同步、导出和关闭任务仍由本机 Python 后台处理。配色与组件层级参考了 [TsumugiSub](https://github.com/nihaina/SubtitleEditforAndroid)。
 
 ## 从源码运行
 
@@ -56,7 +54,7 @@ EXE 首次运行会在 `%LOCALAPPDATA%\bbdc-to-ai` 创建独立配置和缓存�
 .\.venv\Scripts\python.exe -m src.desktop
 ```
 
-前端源码在 `frontend/`。修改后在该目录运行 `npm ci` 和 `npm run build`，提交更新的 `bundle.css` 与 `bundle.js`。直接使用源码版与 EXE 均无需安装 Node.js。
+开发原生窗口需要 Flutter 3.38.5 和 Visual Studio 的「使用 C++ 的桌面开发」工作负载。在 `flutter_ui/` 执行 `flutter pub get`、`flutter test`、`flutter build windows --release`，再从项目根目录运行上述 Python 入口。Python 启动窗口并通过私有管道提供数据。源码检出中若未构建 Flutter 窗口，入口会使用之前的兼容界面。发行版 EXE 已包含 Flutter 引擎、中文界面和 Python 后端。
 
 `export_daily.bat` 是离线导出的命令行入口。`config.example.yaml` 是初次运行生成本地配置用的模板。
 

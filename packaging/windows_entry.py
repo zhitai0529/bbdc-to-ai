@@ -42,6 +42,11 @@ def run_worker(module: str, filename: Path, options: list[str]) -> int:
 
 def main() -> int:
     args = sys.argv[1:]
+    if args == ['--check-flutter']:
+        from src.flutter_window import run_window
+        prepare_external_programs()
+        run_window([], smoke=True)
+        return 0
     if args == ['--check-dashboard']:
         # Release smoke test uses a disposable LOCALAPPDATA. Do not install shortcuts.
         import time

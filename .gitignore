@@ -10,6 +10,14 @@
 !/frontend/*.css
 !/frontend/package*.json
 !/frontend/NOTICES.txt
+!/flutter_ui/
+/flutter_ui/*
+!/flutter_ui/pubspec.yaml
+!/flutter_ui/pubspec.lock
+!/flutter_ui/lib/
+!/flutter_ui/test/
+!/flutter_ui/windows/
+/flutter_ui/windows/flutter/ephemeral/
 !/README.md
 !/CHANGELOG.md
 !/LICENSE

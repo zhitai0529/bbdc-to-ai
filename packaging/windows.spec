@@ -10,6 +10,9 @@ from PyInstaller.utils.win32.versioninfo import (
 
 
 project = Path(SPECPATH).resolve().parent
+flutter_bundle = project / 'flutter_ui/build/windows/x64/runner/Release'
+if not (flutter_bundle / 'review_ui.exe').is_file():
+    raise RuntimeError('Build flutter_ui with flutter build windows --release first.')
 version = run_path(str(project / 'src/version.py'))['VERSION']
 file_version = (*map(int, version.split('.')), 0)
 metadata = VSVersionInfo(
@@ -54,6 +57,7 @@ analysis = Analysis(
     datas=[
         (str(project / 'config.example.yaml'), '.'),
         (str(project / 'rules.yaml'), '.'),
+        (str(flutter_bundle), 'flutter_ui'),
         *((str(project / 'frontend' / name), 'frontend') for name in ('index.html', 'bundle.js', 'bundle.css')),
         *collect_data_files('webview', subdir='js'),
         (str(notice_file), '.'),
