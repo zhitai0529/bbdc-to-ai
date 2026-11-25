@@ -225,8 +225,7 @@ class DesktopBridgeTests(unittest.TestCase):
 
         def finish(**kwargs):
             hide.assert_called_once_with()
-            self.assertGreater(kwargs['timeout'], 0)
-            self.assertLessEqual(kwargs['timeout'], 240)
+            self.assertEqual(kwargs['timeout'], 235)
             self.assertFalse((captured['session'] / 'cancel').exists())
             captured['output'].write(b'{"status":"no_records","day":"2026-11-25"}')
             return 2
@@ -234,7 +233,8 @@ class DesktopBridgeTests(unittest.TestCase):
         process.wait.side_effect = finish
         with patch('src.desktop_jobs.discover_mumu_manager', return_value=manager), \
                 patch('src.desktop_jobs.remember_mumu_manager'), \
-                patch('src.desktop_worker.subprocess.Popen', side_effect=saving_worker):
+                patch('src.desktop_worker.subprocess.Popen', side_effect=saving_worker), \
+                patch('src.desktop_worker.time.monotonic', side_effect=[100, 105]):
             self.assertEqual(self.api.start('sync')['status'], 'started')
             self.assertIsNone(self.api._jobs.close(hide))
         process.kill.assert_not_called()
