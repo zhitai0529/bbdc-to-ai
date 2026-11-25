@@ -10,6 +10,7 @@ import sys
 from tempfile import TemporaryDirectory
 
 from src.config import PROJECT_ROOT, load_config
+from src.desktop_files import save_review_level
 from src.pipeline import process_payload
 from src.version import VERSION
 
@@ -88,10 +89,13 @@ def main() -> None:
                           'meaning': '不透明的'}], config, day, announce=False)
         destination = config.output_dir / f'{day}_bbdc_review.md'
         destination.unlink()
+        save_review_level('cet4', app_data / 'config.yaml')
         reply = run_worker('export', 0)
         assert reply['status'] == 'exported' and reply['target_word_count'] == 1
         assert Path(reply['output']) == destination
-        assert '| opaque | 不透明的 | 复习不会 | 1 |' in destination.read_text(encoding='utf-8')
+        markdown = destination.read_text(encoding='utf-8')
+        assert '| opaque | 不透明的 | 复习不会 | 1 |' in markdown
+        assert '阅读练习难度：四级。' in markdown
         assert not (config.output_dir / f'{day}_unknown_codes.md').exists()
         subprocess.run([str(executable), '--check-dashboard'], env=env, cwd=area, timeout=65, check=True)
         theme = app_data / 'appearance-theme.txt'

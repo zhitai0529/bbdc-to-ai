@@ -177,6 +177,17 @@
       <section id="settings" class="view stack" hidden>
         <article class="panel">
           <div class="panelhead">
+            <h2><i data-lucide="book-open"></i>复习难度</h2>
+            <select id="reviewLevel" aria-label="复习难度" disabled>
+              <option value="cet4">四级</option>
+              <option value="cet6">六级</option>
+              <option value="postgrad">考研</option>
+            </select>
+          </div>
+          <small>新的 Prompt 会要求 AI 按所选难度造句，并注释超纲词。要更新今天的文件，点「导出今日复习」。</small>
+        </article>
+        <article class="panel">
+          <div class="panelhead">
             <h2><i data-lucide="monitor"></i>MuMu 模拟器环境</h2>
             <button data-action="setup">
               <i data-lucide="settings-2"></i>一键配置 MuMu

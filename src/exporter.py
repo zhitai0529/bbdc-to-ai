@@ -6,6 +6,7 @@ import html
 from pathlib import Path
 
 from src.parser import WordRecord, collect_unknown_codes
+from src.review_levels import DEFAULT_REVIEW_LEVEL, REVIEW_LEVELS, ReviewLevel
 from src.storage import atomic_write
 
 
@@ -56,7 +57,9 @@ def export_unknown_codes(words: list[WordRecord], output_dir: Path, day: date, *
     return destination
 
 
-def export_review(words: list[WordRecord], output_dir: Path, target_date: date) -> Path:
+def export_review(words: list[WordRecord], output_dir: Path, target_date: date, *,
+                  review_level: ReviewLevel = DEFAULT_REVIEW_LEVEL) -> Path:
+    profile = REVIEW_LEVELS[review_level]
     hard_words = [word for word in words if word.level == 'hard']
     fuzzy_words = [word for word in words if word.level == 'fuzzy']
     mastered_words = [word for word in words if word.level == 'mastered']
@@ -78,7 +81,9 @@ def export_review(words: list[WordRecord], output_dir: Path, target_date: date) 
                  if any(w.source == 'bbdc-android-5.11.8' for w in words) else '')
     content = f'''# {target_date.isoformat()} 不背单词每日纠结词复习 Prompt
 
-请担任我的考研英语记忆教练与阅读语法教师，直接完成下面两个任务。
+请担任我的英语记忆教练与阅读语法教师，直接完成下面两个任务。
+
+阅读练习难度：{profile.label}。
 
 ## 本次数据范围
 
@@ -105,7 +110,7 @@ def export_review(words: list[WordRecord], output_dir: Path, target_date: date) 
 
 只针对 hard_words，逐词输出记忆锚点表：
 
-| 单词与核心考研义 | 词根拆解 | 熟词联想 | 谐音画面 | 3 秒提取钩子 |
+| 单词与核心义 | 词根拆解 | 熟词联想 | 谐音画面 | 3 秒提取钩子 |
 | --- | --- | --- | --- | --- |
 
 要求：
@@ -114,13 +119,14 @@ def export_review(words: list[WordRecord], output_dir: Path, target_date: date) 
 3. 严格区分真实词根词源与人为记忆拆分；不能合理拆词根时明确写“无可靠拆解”，不得编造词源。谐音只作辅助，并提醒以标准发音为准。
 4. 不要漏词，也不要把 fuzzy_words 扩充到本任务；hard_words 为空时跳过本任务。
 
-## 任务二：考研高密度阶梯长难句
+## 任务二：{profile.label}英语阅读与阶梯拆解
 
-只将 hard_words 和 fuzzy_words 作为目标词，按考研英语阅读风格组织学术、社会、科技类长难句。
+只将 hard_words 和 fuzzy_words 作为目标词，按{profile.label}英语阅读难度造句。{profile.sentence_structure} 词数只计英文。
 
-1. 通常每句包含 5～8 个不同目标词，优先自然、准确地表达，禁止为了凑词生成病句。按语义分组，覆盖所有目标词；可按需要使用正常功能词和其他语境词，但不得添加新目标词。
-2. 词形变化允许，但须在速查中回指原词。目标词不足 5 个或最后一组不足 5 个时，使用剩余实际数量并注明，不得拿熟词凑数。
-3. 每句先展示完整英文句，目标词加粗，再给出准确的整句中文翻译。
+1. 通常每句包含 {profile.target_words} 个不同目标词。按语义分组，覆盖所有目标词；如果同句放不下，就拆成多句。可使用常见功能词和必要的语境词，不额外添加学习目标。
+2. 词形变化允许，但须在速查中回指原词。一组词太少或组合不自然时，可以用更少的目标词造句，不用熟词凑数。
+3. 每句先展示完整英文句，目标词加粗，再给出准确的整句中文翻译。补充语境优先用当前档位常见的词和搭配。读起来过难的非目标词，先试着换成常用表达。对于保留的超出当前档位的词、搭配、术语或生僻义，无论是不是目标词，都在本句首次出现处紧跟中文全角括号，只写此处用得上的中文义。
+   - 目标词格式为 `**英文**（语境义）`，非目标词格式为 `英文（语境义）`。加粗代表本次复习目标。未提供考试词表时，按该档位读者对这个用法的熟悉程度估计；不要声称某词一定在考试大纲内或外。词汇速查不能代替原句括注。若原句需要多处括注，优先简化背景表达，或把目标词拆到不同句子。
 4. 严格使用【竖向阶梯对齐法】：句子主干顶格、加粗；修饰成分下一行用 `├──` 缩进，同级对齐，嵌套从句继续缩进；标明从句类型、先行词、修饰对象，以及关键连接词的逻辑关系。不要把所有从句错误挂在同一主干下。
 5. 阶梯拆解使用普通 Markdown 行并以两个空格换行，保留加粗效果；不要放入会让 `**主干**` 失效的代码块。
 

@@ -150,4 +150,4 @@ def _snapshot(config: Config, selection: str | None, *, use_history: bool) -> di
                 errors=errors, repeats=repeats, unknown=unknown,
                 codes_available=bool(cached), window=config.escalation_window_days, warning=warning,
                 sidebar=stats if day == today and words else dict(sidebar) if sidebar else None,
-                prompt=prompt, folder=str(config.output_dir))
+                prompt=prompt, folder=str(config.output_dir), review_level=config.review_level)

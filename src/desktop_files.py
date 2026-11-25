@@ -13,6 +13,7 @@ from yaml.nodes import MappingNode, ScalarNode
 from filelock import FileLock, Timeout
 
 from src.config import Config, load_config
+from src.review_levels import parse_review_level
 from src.runtime import default_config_path
 from src.storage import atomic_write
 
@@ -66,32 +67,47 @@ def save_output_dir(directory: Path, config_path: Path | None = None) -> Path:
     except OSError as exc:
         raise ValueError(f'无法写入所选文件夹，请选择有写入权限的文件夹。\n{directory}') from exc
 
-    content = source.read_text(encoding='utf-8')
-    try:
-        updated = replace_output_dir(content, directory)
-        yaml.safe_load(updated)
-    except yaml.YAMLError as exc:
-        raise ValueError('无法更新保存位置。请检查 config.yaml 的格式。') from exc
-    if updated != content:
-        atomic_write(source, updated)
+    save_config_scalar(source, 'output_dir', str(directory), '保存位置')
     return directory
 
 
-def replace_output_dir(content: str, directory: Path) -> str:
-    """只替换顶层 output_dir 的值，保留配置的其余文字。"""
+def save_review_level(level: str, config_path: Path | None = None) -> None:
+    value = parse_review_level(level)
+    source = (config_path if config_path is not None else default_config_path()).resolve()
+    save_config_scalar(source, 'review_level', value, '复习难度')
+
+
+def save_config_scalar(source: Path, key: str, value: str, label: str) -> None:
+    try:
+        with FileLock(str(source.parent / '.config.lock'), timeout=5):
+            content = source.read_text(encoding='utf-8-sig')
+            updated = replace_config_scalar(content, key, value)
+            yaml.safe_load(updated)
+            if updated != content:
+                atomic_write(source, updated)
+    except (yaml.YAMLError, UnicodeError) as exc:
+        raise ValueError(f'无法更新{label}。请检查 config.yaml 的格式和编码。') from exc
+    except Timeout as exc:
+        raise ValueError(f'正在保存其他设置，请稍后再更新{label}。') from exc
+    except OSError as exc:
+        raise ValueError(f'无法更新{label}。请检查配置文件所在文件夹的读写权限。') from exc
+
+
+def replace_config_scalar(content: str, setting: str, new_value: str) -> str:
+    """Replace one top-level scalar while retaining the surrounding YAML text."""
     root = yaml.compose(content, Loader=yaml.SafeLoader)
     if not isinstance(root, MappingNode):
         raise ValueError('config.yaml 必须是对象。')
 
-    value_text = json.dumps(str(directory), ensure_ascii=False)
-    entries = [(key, value) for key, value in root.value if isinstance(key, ScalarNode) and key.value == 'output_dir']
+    value_text = json.dumps(new_value, ensure_ascii=False)
+    entries = [(key, value) for key, value in root.value if isinstance(key, ScalarNode) and key.value == setting]
     if len(entries) > 1:
-        raise ValueError('config.yaml 中有重复的 output_dir，请保留一项。')
+        raise ValueError(f'config.yaml 中有重复的 {setting}，请保留一项。')
     if entries:
         key, value = entries[0]
         start, end = value.start_mark.index, value.end_mark.index
         if not isinstance(value, ScalarNode) or start < key.end_mark.index:
-            raise ValueError('config.yaml 的 output_dir 必须直接填写路径。')
+            raise ValueError(f'config.yaml 的 {setting} 必须直接填写一个值。')
         if start == end:
             value_text = ' ' + value_text
         if content[start:end].endswith('\n'):
@@ -101,8 +117,8 @@ def replace_output_dir(content: str, directory: Path) -> str:
     if root.flow_style:
         end = root.end_mark.index - 1
         separator = ', ' if root.value and not content[:end].rstrip().endswith(',') else ''
-        return content[:end] + f'{separator}output_dir: {value_text}' + content[end:]
+        return content[:end] + f'{separator}{setting}: {value_text}' + content[end:]
 
     first_key = root.value[0][0].start_mark
     start = first_key.index
-    return content[:start] + f'output_dir: {value_text}\n' + ' ' * first_key.column + content[start:]
+    return content[:start] + f'{setting}: {value_text}\n' + ' ' * first_key.column + content[start:]

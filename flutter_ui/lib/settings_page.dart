@@ -3,6 +3,8 @@ import 'appearance.dart';
 import 'bridge.dart';
 import 'widgets.dart';
 
+const reviewLevelLabels = {'cet4': '四级', 'cet6': '六级', 'postgrad': '考研'};
+
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
     super.key,
@@ -17,6 +19,7 @@ class SettingsPage extends StatelessWidget {
     required this.open,
     required this.mode,
     required this.changeTheme,
+    required this.changeReviewLevel,
   });
   final Json data;
   final String adb, root;
@@ -25,6 +28,7 @@ class SettingsPage extends StatelessWidget {
   final VoidCallback open;
   final ThemeMode mode;
   final ValueChanged<ThemeMode>? changeTheme;
+  final ValueChanged<String>? changeReviewLevel;
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).colorScheme;
@@ -35,6 +39,33 @@ class SettingsPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Section(
+              '复习难度',
+              Icons.school_outlined,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SegmentedButton<String>(
+                    segments: [
+                      for (final level in reviewLevelLabels.entries)
+                        ButtonSegment(
+                          value: level.key,
+                          label: Text(level.value),
+                        ),
+                    ],
+                    selected: {data['review_level'] as String? ?? 'postgrad'},
+                    onSelectionChanged: changeReviewLevel == null
+                        ? null
+                        : (selection) => changeReviewLevel!(selection.single),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    '新的 Prompt 会要求 AI 按所选难度造句，并注释超纲词。要更新今天的文件，点「导出今日复习」。',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             Section(
               '外观主题',
               Icons.palette_outlined,

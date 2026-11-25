@@ -31,6 +31,31 @@ class DesktopBridgeTests(unittest.TestCase):
         serve(self.api, requests, replies)
         return [json.loads(line) for line in replies.getvalue().splitlines()]
 
+    def test_review_level_round_trips_without_changing_existing_markdown(self) -> None:
+        config = self.root / 'config.yaml'
+        template = (PROJECT_ROOT / 'config.example.yaml').read_text(encoding='utf-8')
+        original = template.replace('review_level: postgrad\n', '')
+        config.write_text(original, encoding='utf-8')
+        day = date(2026, 11, 25).isoformat()
+        settings = load_config(config)
+        settings.output_dir.mkdir()
+        path = review_path(settings.output_dir, date.fromisoformat(day))
+        path.write_text('# 已保存的复习', encoding='utf-8')
+        with patch('src.desktop_files.default_config_path', return_value=config), \
+                patch('src.desktop_api.load_config', side_effect=lambda: load_config(config)):
+            before, saved, rejected, after = self.call_host(
+                ('select_day', [day]), ('save_review_level', ['cet4']),
+                ('save_review_level', ['invalid']), ('select_day', [day]),
+            )
+        self.assertEqual(before['result']['review_level'], 'postgrad')
+        self.assertIsNone(saved['result'])
+        self.assertIn('review_level', rejected['error'])
+        self.assertEqual(after['result']['review_level'], 'cet4')
+        self.assertEqual(load_config(config).output_dir, settings.output_dir)
+        self.assertEqual(config.read_text(encoding='utf-8').replace('review_level: "cet4"\n', ''), original)
+        self.assertEqual(after['result']['prompt'], '# 已保存的复习')
+        self.assertEqual(path.read_text(encoding='utf-8'), '# 已保存的复习')
+
     def test_failed_sync_forwards_diagnostic_and_leaves_local_preview_available(self) -> None:
         day = date(2026, 11, 23)
         self.config.output_dir.mkdir()

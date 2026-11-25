@@ -9,6 +9,7 @@ Json sample(String day) => {
   'dates': ['2026-11-24', '2026-11-23'],
   'version': '1.4.0',
   'folder': 'test-output',
+  'review_level': 'postgrad',
   'warning': '',
   'prompt': '# 每日提示词',
   'stats': {'total': 4, 'hard': 2, 'fuzzy': 1, 'promoted': 1, 'mastered': 1},
@@ -32,6 +33,52 @@ Json sample(String day) => {
   'window': 7,
 };
 void main() {
+  testWidgets('Review difficulty loads and updates after a successful save', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final saved = <String>[];
+    Future<dynamic> host(String method, [List<dynamic> args = const []]) async {
+      switch (method) {
+        case 'initialize':
+          return {
+            'data': {...sample('2026-11-24'), 'review_level': 'cet6'},
+          };
+        case 'save_review_level':
+          final selection = args.single as String;
+          if (selection == 'postgrad') throw StateError('无法保存复习难度。');
+          saved.add(selection);
+          return null;
+        default:
+          throw UnsupportedError(method);
+      }
+    }
+
+    SegmentedButton<String> selector() => tester.widget(
+      find.byWidgetPredicate((widget) => widget is SegmentedButton<String>),
+    );
+    await tester.pumpWidget(ReviewApp(call: host));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MuMu 与设置'));
+    await tester.pumpAndSettle();
+    expect(selector().selected, {'cet6'});
+
+    await tester.tap(find.text('四级'));
+    await tester.pumpAndSettle();
+    expect(saved, ['cet4']);
+    expect(selector().selected, {'cet4'});
+    expect(find.textContaining('下次导出时生效'), findsWidgets);
+
+    await tester.tap(find.text('考研'));
+    await tester.pumpAndSettle();
+    expect(selector().selected, {'cet4'});
+    expect(find.text('无法保存复习难度。'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'MuMu setup discloses requirements and shows the backend diagnostic and next step',
     (tester) async {

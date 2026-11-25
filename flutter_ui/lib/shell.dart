@@ -270,6 +270,11 @@ class _ShellState extends State<Shell> {
     }
   });
 
+  Future<void> changeReviewLevel(String level) => perform(() async {
+    await session.saveReviewLevel(level);
+    notify('已保存${reviewLevelLabels[level]}难度，下次导出时生效。');
+  });
+
   Future<void> save() => perform(() async {
     setState(() => saving = true);
     try {
@@ -421,6 +426,9 @@ class _ShellState extends State<Shell> {
                                 changeTheme: widget.changeTheme == null
                                     ? null
                                     : changeTheme,
+                                changeReviewLevel: busy
+                                    ? null
+                                    : changeReviewLevel,
                               ),
                             },
                           ),

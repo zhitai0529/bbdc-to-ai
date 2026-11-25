@@ -66,5 +66,10 @@ class ReviewSession {
     return true;
   }
 
+  Future<void> saveReviewLevel(String level) async {
+    await _call('save_review_level', [level]);
+    data = {...data!, 'review_level': level};
+  }
+
   Future<void> openFolder() async => _call('open_folder');
 }

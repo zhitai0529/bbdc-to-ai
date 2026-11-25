@@ -9,7 +9,7 @@ import webbrowser
 
 from src.config import load_config
 from src.dashboard_data import dashboard
-from src.desktop_files import latest_review, save_output_dir, save_review_prompt
+from src.desktop_files import latest_review, save_output_dir, save_review_level, save_review_prompt
 from src.desktop_jobs import DesktopJobs
 from src.mumu_diagnostics import MUMU_DOWNLOAD_URL
 
@@ -33,6 +33,10 @@ class DesktopAPI:
     def save_prompt(self, day: str, original: str, content: str) -> None:
         with self._jobs.idle():
             save_review_prompt(load_config(), date.fromisoformat(day), original, content)
+
+    def save_review_level(self, level: str) -> None:
+        with self._jobs.idle():
+            save_review_level(level)
 
     def open_folder(self) -> None:
         folder = load_config().output_dir

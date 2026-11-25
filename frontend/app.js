@@ -101,6 +101,7 @@ function controls() {
             (busy || !data);
   }
   byId("dates").disabled = busy || !data;
+  byId("reviewLevel").disabled = busy || !data;
   byId("dot").classList.toggle("busy", busy);
 }
 function choose(title, body, choices) {
@@ -220,6 +221,7 @@ function renderView() {
 }
 function apply(d) {
   data = d;
+  byId("reviewLevel").value = d.review_level ?? "postgrad";
   byId("version").textContent = "v" + d.version;
   byId("dates").replaceChildren(
     ...d.dates.map((day) => new Option(day, day, false, day === d.day)),
@@ -434,8 +436,10 @@ document.addEventListener("click", (e) => {
   if (button.dataset.action) dispatch(button.dataset.action).catch(report);
 });
 byId("dates").onchange = async (e) => {
+  if (busy) return;
   const selected = e.target.value;
-  e.target.disabled = true;
+  busy = true;
+  controls();
   try {
     apply(await api().select_day(selected));
     message(data.warning || "已切换至 " + selected + " 的记录。");
@@ -443,6 +447,26 @@ byId("dates").onchange = async (e) => {
     e.target.value = data.day;
     report(err);
   } finally {
+    busy = false;
+    controls();
+  }
+};
+byId("reviewLevel").onchange = async (e) => {
+  if (busy) return;
+  const select = e.target,
+    level = select.value,
+    label = select.selectedOptions[0].textContent;
+  busy = true;
+  controls();
+  try {
+    await api().save_review_level(level);
+    data.review_level = level;
+    message(`已保存${label}难度，下次导出时生效。`, true);
+  } catch (err) {
+    select.value = data.review_level ?? "postgrad";
+    report(err);
+  } finally {
+    busy = false;
     controls();
   }
 };

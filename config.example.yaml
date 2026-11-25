@@ -17,6 +17,9 @@ fuzzy_escalation_threshold: 2
 # 改为 true 可另存未知编码核对报告；这些词始终会写入每日复习文件。
 write_unknown_codes_report: false
 
+# AI 阅读练习难度：cet4（四级）、cet6（六级）、postgrad（考研）。
+review_level: postgrad
+
 parser:
   # 以下通用映射只用于其它 JSON 格式；5.11.8 的 rh/ah 由专用适配器解释。
   # 留空时搜索嵌套 JSON 中的词条；有样本后建议填写 data.words 等明确路径。

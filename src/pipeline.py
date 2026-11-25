@@ -90,7 +90,7 @@ def _merge_and_export(parsed: ParseResult, config: Config, day: date, *,
                     key = word.spelling.casefold()
                     counts[key] = counts.get(key, 0) + 1
         review_words = [escalate(word, counts, config) for word in merged]
-        destination = export_review(review_words, config.output_dir, day)
+        destination = export_review(review_words, config.output_dir, day, review_level=config.review_level)
         unknown_report = export_unknown_codes(merged, config.output_dir, day,
                                               enabled=config.write_unknown_codes_report)
     return PipelineResult(parsed, review_words, destination, unknown_report, new_word_count)

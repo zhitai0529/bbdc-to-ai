@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 import math
 import yaml
 
+from src.review_levels import DEFAULT_REVIEW_LEVEL, ReviewLevel, parse_review_level
 from src.runtime import PROJECT_ROOT as PROJECT_ROOT, default_config_path
 
 
@@ -70,6 +71,7 @@ class Config:
     code_rules: dict[tuple[str, str, str | None], CodeRule] = field(default_factory=dict)
     manual_mastered_max_duration: int | None = 90
     write_unknown_codes_report: bool = False
+    review_level: ReviewLevel = DEFAULT_REVIEW_LEVEL
 
     @property
     def history_path(self) -> Path:
@@ -105,6 +107,7 @@ def load_config(path: Path | str | None = None) -> Config:
     write_unknown_report = data.get('write_unknown_codes_report', False)
     if type(write_unknown_report) is not bool:
         raise ValueError('write_unknown_codes_report 必须是布尔值')
+    review_level = parse_review_level(data.get('review_level', DEFAULT_REVIEW_LEVEL))
     code_path = source.with_name('rules.yaml')
     code_rules, manual_limit = load_code_rules(code_path if code_path.exists() else PROJECT_ROOT / 'rules.yaml')
     rules = data.get('parser')
@@ -153,4 +156,4 @@ def load_config(path: Path | str | None = None) -> Config:
                   resolve('raw_dump_dir', './raw_dumps'), resolve('state_dir', './.bbdc_state'),
                   resolve('output_dir', './output'), limit, rules,
                   tuple(d.lower().rstrip('.') for d in domains), window, threshold, code_rules, manual_limit,
-                  write_unknown_codes_report=write_unknown_report)
+                  write_unknown_codes_report=write_unknown_report, review_level=review_level)
