@@ -130,6 +130,7 @@ def main() -> None:
             sync_worker = worker.return_value
             sync_worker.scratch.name = str(root / 'worker')
             sync_worker.sync = True
+            sync_worker.setup = False
             def request_sync_cancel() -> bool:
                 sync_cancel_requested.set()
                 return True
