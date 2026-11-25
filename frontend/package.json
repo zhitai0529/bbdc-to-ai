@@ -2,7 +2,7 @@
   "name": "bbdc-review-dashboard",
   "private": true,
   "scripts": {
-    "build": "tailwindcss -i theme.css -o bundle.css --minify --content \"./index.html,./app.js,./charts.js\" && esbuild app.js --bundle --minify --legal-comments=eof --outfile=bundle.js"
+    "build": "tailwindcss -i theme.css -o bundle.css --minify --content \"./index.html,./app.js,./charts.js,./exercise.js\" && esbuild app.js --bundle --minify --legal-comments=eof --outfile=bundle.js"
   },
   "dependencies": {
     "chart.js": "4.4.9",

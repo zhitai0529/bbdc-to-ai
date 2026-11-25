@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'appearance.dart';
 import 'bridge.dart';
+import 'review_levels.dart';
 import 'widgets.dart';
-
-const reviewLevelLabels = {'cet4': '四级', 'cet6': '六级', 'postgrad': '考研'};
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({

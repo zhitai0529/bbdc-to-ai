@@ -10,6 +10,8 @@ from unittest.mock import Mock, patch
 from src.config import PROJECT_ROOT, load_config
 from src.dashboard_data import review_path
 from src.flutter_window import FlutterAPI, serve
+from src.parser import WordRecord
+from src.review_cache import ReviewCache
 
 
 class DesktopBridgeTests(unittest.TestCase):
@@ -55,6 +57,24 @@ class DesktopBridgeTests(unittest.TestCase):
         self.assertEqual(config.read_text(encoding='utf-8').replace('review_level: "cet4"\n', ''), original)
         self.assertEqual(after['result']['prompt'], '# 已保存的复习')
         self.assertEqual(path.read_text(encoding='utf-8'), '# 已保存的复习')
+
+    def test_exercise_bridge_exports_for_selected_day_and_keeps_daily_settings(self) -> None:
+        day = date(2026, 11, 23)
+        cache = ReviewCache(self.config, day)
+        cache.path.parent.mkdir()
+        cache.save([WordRecord('verify', '核实', level='hard')])
+        day_text = day.isoformat()
+        snapshot, invalid, exported, after = self.call_host(
+            ('select_day', [day_text]), ('export_exercise', ['20261123', 'cet4', 'cloze']),
+            ('export_exercise', [day_text, 'cet4', 'cloze']), ('select_day', [day_text]),
+        )
+        self.assertEqual(len(snapshot['result']['exercise_types']), 6)
+        self.assertIn('有效的学习日期', invalid['error'])
+        result = exported['result']
+        self.assertEqual(result['filename'], f'{day_text}_bbdc_exercise_cet4_cloze.md')
+        self.assertEqual(result['markdown'], (self.config.output_dir / result['filename']).read_text(encoding='utf-8'))
+        self.assertEqual(after['result']['review_level'], self.config.review_level)
+        self.assertIsNone(after['result']['prompt'])
 
     def test_failed_sync_forwards_diagnostic_and_leaves_local_preview_available(self) -> None:
         day = date(2026, 11, 23)

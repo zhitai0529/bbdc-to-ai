@@ -7,10 +7,11 @@ import os
 from pathlib import Path
 import webbrowser
 
-from src.config import load_config
+from src.config import Config, load_config
 from src.dashboard_data import dashboard
 from src.desktop_files import latest_review, save_output_dir, save_review_level, save_review_prompt
 from src.desktop_jobs import DesktopJobs
+from src.exercise import ExerciseExport, exercise_types, export_exercise as generate_exercise
 from src.mumu_diagnostics import MUMU_DOWNLOAD_URL
 
 
@@ -24,11 +25,15 @@ class DesktopAPI:
     def initialize(self) -> dict:
         config = load_config()
         path = latest_review(config.output_dir) if self._latest else None
-        return {'data': dashboard(config, path.name[:10] if path else None),
+        return {'data': self._view_data(config, path.name[:10] if path else None),
                 'warning': self._warning, 'export': self._auto_export}
 
     def select_day(self, day: str | None) -> dict:
-        return dashboard(load_config(), day)
+        return self._view_data(load_config(), day)
+
+    @staticmethod
+    def _view_data(config: Config, day: str | None) -> dict:
+        return {**dashboard(config, day), 'exercise_types': exercise_types()}
 
     def save_prompt(self, day: str, original: str, content: str) -> None:
         with self._jobs.idle():
@@ -37,6 +42,16 @@ class DesktopAPI:
     def save_review_level(self, level: str) -> None:
         with self._jobs.idle():
             save_review_level(level)
+
+    def export_exercise(self, day: str, level: str, kind: str) -> ExerciseExport:
+        try:
+            selected = date.fromisoformat(day)
+            if day != selected.isoformat():
+                raise ValueError
+        except (TypeError, ValueError) as exc:
+            raise ValueError('请选择有效的学习日期。') from exc
+        with self._jobs.idle():
+            return generate_exercise(load_config(), selected, level, kind)
 
     def open_folder(self) -> None:
         folder = load_config().output_dir

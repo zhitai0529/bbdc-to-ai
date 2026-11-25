@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'bridge.dart';
 
-const reviewPageLabels = ['复习总览', '复习预览', '历史与惯犯词', 'MuMu 与设置'];
+const exercisePageIndex = 4;
+const reviewPageLabels = ['复习总览', '复习预览', '历史与惯犯词', 'MuMu 与设置', '分档练习'];
 
 class ReviewSidebar extends StatelessWidget {
   const ReviewSidebar({
@@ -20,12 +21,13 @@ class ReviewSidebar extends StatelessWidget {
   final ValueChanged<int> onPage;
   final VoidCallback onOpenFolder;
 
-  static const compactLabels = ['总览', '预览', '历史', '设置'];
+  static const compactLabels = ['总览', '预览', '历史', '设置', '练习'];
   static const icons = [
     Icons.dashboard_outlined,
     Icons.menu_book_outlined,
     Icons.history,
     Icons.tune,
+    Icons.quiz_outlined,
   ];
 
   @override

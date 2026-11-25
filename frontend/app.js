@@ -24,9 +24,11 @@ import {
   CircleCheckBig,
   ScanLine,
   Check,
+  ClipboardList,
 } from "lucide";
 import MarkdownIt from "markdown-it";
 import { byId, node, overview, trends } from "./charts";
+import { mountExercise } from "./exercise";
 const glyphs = {
   BookOpen,
   LayoutDashboard,
@@ -52,6 +54,7 @@ const glyphs = {
   CircleCheckBig,
   ScanLine,
   Check,
+  ClipboardList,
 };
 const icons = () => createIcons({ icons: glyphs });
 const md = new MarkdownIt({ html: false, linkify: false }).disable([
@@ -81,6 +84,11 @@ function message(text, toast = false) {
 function report(e) {
   message(e?.message || String(e), true);
 }
+const exercises = mountExercise(byId("exercise"), {
+  api,
+  renderMarkdown: (source) => md.render(source),
+  onBusyChange: controls,
+});
 function record(line) {
   if (!line) return;
   log.push(
@@ -90,19 +98,21 @@ function record(line) {
   byId("logs").scrollTop = byId("logs").scrollHeight;
 }
 function controls() {
+  const occupied = busy || exercises.pending;
   for (const el of document.querySelectorAll("[data-action]")) {
     const a = el.dataset.action;
     el.disabled =
       a === "copy"
         ? !data || !content()
         : a === "save"
-          ? busy || !data || !drafts.has(draftKey())
+          ? occupied || !data || !drafts.has(draftKey())
           : ["sync", "setup", "export", "change"].includes(a) &&
-            (busy || !data);
+            (occupied || !data);
   }
-  byId("dates").disabled = busy || !data;
-  byId("reviewLevel").disabled = busy || !data;
-  byId("dot").classList.toggle("busy", busy);
+  byId("dates").disabled = occupied || !data;
+  byId("reviewLevel").disabled = occupied || !data;
+  byId("dot").classList.toggle("busy", occupied);
+  exercises.setBlocked(busy);
 }
 function choose(title, body, choices) {
   const dialog = byId("modal");
@@ -172,10 +182,16 @@ function renderView() {
   const titles = {
     overview: data?.day === data?.today ? "今日复习看板" : "复习看板",
     preview: "复习预览",
+    exercise: "分档练习",
     history: "历史与惯犯词",
     settings: "MuMu 与设置",
   };
   byId("title").textContent = titles[view];
+  byId("subtitle").textContent =
+    view === "exercise"
+      ? "选择难度和题型，用待复习词生成 AI 出题提示词"
+      : "把需要再练的单词整理成 AI 复习提示词";
+  document.querySelector("[data-action=copy]").hidden = view === "exercise";
   document.querySelectorAll(".view").forEach((v) => (v.hidden = v.id !== view));
   for (const button of document.querySelectorAll("[data-view]")) {
     if (button.dataset.view === view)
@@ -221,6 +237,7 @@ function renderView() {
 }
 function apply(d) {
   data = d;
+  exercises.update(d);
   byId("reviewLevel").value = d.review_level ?? "postgrad";
   byId("version").textContent = "v" + d.version;
   byId("dates").replaceChildren(
@@ -305,7 +322,7 @@ async function taskResult(action, result) {
   }
 }
 async function run(action) {
-  if (busy) return;
+  if (busy || exercises.pending) return;
   busy = true;
   controls();
   try {
@@ -397,7 +414,7 @@ async function dispatch(action) {
   if (action === "save") {
     const key = draftKey(),
       draft = drafts.get(key);
-    if (!draft || busy) return;
+    if (!draft || busy || exercises.pending) return;
     busy = true;
     controls();
     try {
@@ -412,7 +429,7 @@ async function dispatch(action) {
     }
   }
   if (action === "change") {
-    if (busy) return;
+    if (busy || exercises.pending) return;
     busy = true;
     controls();
     try {
@@ -436,7 +453,7 @@ document.addEventListener("click", (e) => {
   if (button.dataset.action) dispatch(button.dataset.action).catch(report);
 });
 byId("dates").onchange = async (e) => {
-  if (busy) return;
+  if (busy || exercises.pending) return;
   const selected = e.target.value;
   busy = true;
   controls();
@@ -452,7 +469,7 @@ byId("dates").onchange = async (e) => {
   }
 };
 byId("reviewLevel").onchange = async (e) => {
-  if (busy) return;
+  if (busy || exercises.pending) return;
   const select = e.target,
     level = select.value,
     label = select.selectedOptions[0].textContent;
@@ -461,6 +478,7 @@ byId("reviewLevel").onchange = async (e) => {
   try {
     await api().save_review_level(level);
     data.review_level = level;
+    exercises.update(data);
     message(`已保存${label}难度，下次导出时生效。`, true);
   } catch (err) {
     select.value = data.review_level ?? "postgrad";

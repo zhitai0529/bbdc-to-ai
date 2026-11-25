@@ -25,6 +25,9 @@
         <button data-view="preview">
           <i data-lucide="file-text"></i>复习预览
         </button>
+        <button data-view="exercise">
+          <i data-lucide="clipboard-list"></i>分档练习
+        </button>
         <button data-view="history">
           <i data-lucide="history"></i>历史与惯犯词
         </button>
@@ -51,7 +54,7 @@
       <header class="toolbar">
         <div class="intro">
           <h1 id="title">今日复习看板</h1>
-          <p>把需要再练的单词整理成 AI 复习提示词</p>
+          <p id="subtitle">把需要再练的单词整理成 AI 复习提示词</p>
         </div>
         <div class="actions">
           <label class="datebox"
@@ -151,6 +154,45 @@
             <i data-lucide="save"></i>保存修改
           </button>
         </div>
+      </section>
+      <section id="exercise" class="view stack" hidden>
+        <article class="panel">
+          <div class="panelhead">
+            <h2><i data-lucide="clipboard-list"></i>生成练习提示词</h2>
+          </div>
+          <div class="actions exerciseOptions">
+            <label>
+              <small>练习难度</small>
+              <select id="exerciseLevel" disabled>
+                <option value="cet4">四级</option>
+                <option value="cet6">六级</option>
+                <option value="postgrad" selected>考研</option>
+              </select>
+            </label>
+            <label>
+              <small>练习题型</small>
+              <select id="exerciseType" disabled></select>
+            </label>
+            <button id="generateExercise" class="primary" disabled>
+              <i data-lucide="download"></i>生成练习 Markdown
+            </button>
+          </div>
+          <p id="exerciseDescription" class="exerciseNote">正在读取可用题型…</p>
+          <p class="exerciseNote">使用顶部所选日期的本机错词和模糊词。生成后可复制给 AI 出题。</p>
+          <p id="exerciseStatus" class="exerciseNote" role="status"></p>
+        </article>
+        <article id="exercisePreview" class="panel" hidden>
+          <div class="panelhead">
+            <div>
+              <h2><i data-lucide="book-open-text"></i>练习提示词预览</h2>
+              <small id="exerciseFilename"></small>
+            </div>
+            <button id="copyExercise" disabled>
+              <i data-lucide="copy"></i>复制练习提示词
+            </button>
+          </div>
+          <div id="exerciseMarkdown" class="markdown"></div>
+        </article>
       </section>
       <section id="history" class="view stack" hidden>
         <article class="panel">

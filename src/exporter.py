@@ -10,6 +10,14 @@ from src.review_levels import DEFAULT_REVIEW_LEVEL, REVIEW_LEVELS, ReviewLevel
 from src.storage import atomic_write
 
 
+LADDER_EXAMPLE = '  \n'.join((
+    '**The researchers examined the records**',
+    '├── kept in a castle（存放在城堡里的）→ 过去分词短语修饰 records',
+    '│　 └── that once served as a library → 定语从句修饰 castle',
+    '└── to check the date → 目的状语，说明 examined 的目的',
+))
+
+
 def cell(value: object) -> str:
     text = ' '.join(str(value).split())
     text = html.escape(text, quote=False)
@@ -129,14 +137,11 @@ def export_review(words: list[WordRecord], output_dir: Path, target_date: date, 
    - 目标词格式为 `**英文**（语境义）`，非目标词格式为 `英文（语境义）`。加粗代表本次复习目标。未提供考试词表时，按该档位读者对这个用法的熟悉程度估计；不要声称某词一定在考试大纲内或外。词汇速查不能代替原句括注。若原句需要多处括注，优先简化背景表达，或把目标词拆到不同句子。
 4. 严格使用【竖向阶梯对齐法】：句子主干顶格、加粗；修饰成分下一行用 `├──` 缩进，同级对齐，嵌套从句继续缩进；标明从句类型、先行词、修饰对象，以及关键连接词的逻辑关系。不要把所有从句错误挂在同一主干下。
 5. 阶梯拆解使用普通 Markdown 行并以两个空格换行，保留加粗效果；不要放入会让 `**主干**` 失效的代码块。
+6. 按所选档位判断阅读难点。每句通常选 1～2 处难读的从句或修饰短语，在阶梯树的对应行紧跟片段原文写出中文译文，再说明语法作用或逻辑关系。简单分支只需说明作用。若全句结构都很清楚，可以省略片段译文。每句的整句中文翻译仍要保留。
 
-拆解格式示意（这里只说明排版，不是必须使用的词汇）：
+拆解格式示意（示例词汇不计入目标词）：
 
-**主语 + 谓语 + 宾语（主干）**  
-├── 主语修饰：具体修饰内容 → 中文解释  
-│   ├── 内嵌定语从句：具体内容 → 先行词与作用  
-├── 原因 / 让步 / 条件状语：具体内容 → 逻辑解释  
-└── 宾语修饰：具体内容 → 中文解释  
+{LADDER_EXAMPLE}
 
 每句底部必须附【核心词汇速查】：列出本句实际使用的目标词、原词、语境义和关键搭配。
 最后给出目标词覆盖清单，检查是否遗漏。若两组都为空，明确说明今日暂无可生成的已确认目标词，不要编造词汇或句子。

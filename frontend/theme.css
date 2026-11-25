@@ -607,6 +607,28 @@ textarea {
 .pills {
   padding-bottom: 14px;
 }
+.exerciseOptions {
+  align-items: flex-end;
+  gap: 12px;
+}
+.exerciseOptions label {
+  display: grid;
+  gap: 4px;
+  min-width: 115px;
+}
+.exerciseOptions select {
+  min-height: 36px;
+}
+.exerciseNote {
+  color: var(--muted);
+  margin-top: 8px;
+}
+#exerciseStatus:not(:empty) {
+  color: #d8c9f8;
+}
+#exerciseFilename {
+  overflow-wrap: anywhere;
+}
 .markdown,
 textarea {
   height: calc(100vh - 330px);

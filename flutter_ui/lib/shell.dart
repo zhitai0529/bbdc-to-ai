@@ -8,8 +8,10 @@ import 'package:flutter/services.dart';
 import 'appearance.dart';
 import 'bridge.dart';
 import 'desktop_task.dart';
+import 'exercise_page.dart';
 import 'overview.dart';
 import 'history_page.dart';
+import 'review_levels.dart';
 import 'review_page.dart';
 import 'settings_page.dart';
 import 'sidebar.dart';
@@ -355,13 +357,14 @@ class _ShellState extends State<Shell> {
                             icon: const Icon(Icons.download_outlined),
                             label: const Text('导出今日复习'),
                           ),
-                          OutlinedButton.icon(
-                            onPressed: content.isEmpty ? null : copy,
-                            icon: Icon(
-                              copied ? Icons.check : Icons.copy_outlined,
+                          if (page != exercisePageIndex)
+                            OutlinedButton.icon(
+                              onPressed: content.isEmpty ? null : copy,
+                              icon: Icon(
+                                copied ? Icons.check : Icons.copy_outlined,
+                              ),
+                              label: Text(copied ? '已复制' : '复制全部内容'),
                             ),
-                            label: Text(copied ? '已复制' : '复制全部内容'),
-                          ),
                           ThemeMenu(
                             mode: widget.mode,
                             onChanged: widget.changeTheme == null
@@ -406,6 +409,25 @@ class _ShellState extends State<Shell> {
                                 saving: saving,
                               ),
                               2 => HistoryPage(d),
+                              exercisePageIndex => ExercisePage(
+                                key: ValueKey((d['day'], d['folder'])),
+                                call: widget.call,
+                                day: d['day'],
+                                defaultLevel: d['review_level'] ?? 'postgrad',
+                                options: [
+                                  for (final option
+                                      in d['exercise_types'] as List? ??
+                                          const [])
+                                    (
+                                      id: option['id'] as String,
+                                      label: option['label'] as String,
+                                      description:
+                                          option['description'] as String,
+                                    ),
+                                ],
+                                busy: busy,
+                                openFolder: open,
+                              ),
                               _ => SettingsPage(
                                 data: d,
                                 logs: logs,

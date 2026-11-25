@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:review_ui/bridge.dart';
@@ -10,6 +12,10 @@ Json sample(String day) => {
   'version': '1.4.0',
   'folder': 'test-output',
   'review_level': 'postgrad',
+  'exercise_types': [
+    {'id': 'main_clause', 'label': '找主干', 'description': '找出主语与谓语。'},
+    {'id': 'cloze', 'label': '语境填空', 'description': '在句子中选择合适的词。'},
+  ],
   'warning': '',
   'prompt': '# 每日提示词',
   'stats': {'total': 4, 'hard': 2, 'fuzzy': 1, 'promoted': 1, 'mastered': 1},
@@ -33,6 +39,122 @@ Json sample(String day) => {
   'window': 7,
 };
 void main() {
+  testWidgets(
+    'Exercises use the selected options and keep daily review separate',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(860, 800);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final requests = <List<dynamic>>[];
+      Future<dynamic> host(
+        String method, [
+        List<dynamic> args = const [],
+      ]) async {
+        switch (method) {
+          case 'initialize':
+            return {
+              'data': {...sample('2026-11-24'), 'review_level': 'cet6'},
+            };
+          case 'export_exercise':
+            requests.add(args);
+            if (args.last == 'main_clause') {
+              throw StateError('当天没有词条缓存。');
+            }
+            return {
+              'filename': '2026-11-24_bbdc_exercise_cet4_cloze.md',
+              'markdown': '# 今日练习',
+              'word_count': 3,
+            };
+          default:
+            throw UnsupportedError(method);
+        }
+      }
+
+      await tester.pumpWidget(ReviewApp(call: host));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('练习'));
+      await tester.pumpAndSettle();
+      expect(find.text('分档练习'), findsOneWidget);
+      expect(find.text('复制全部内容'), findsNothing);
+      await tester.tap(find.text('生成练习 Markdown'));
+      await tester.pumpAndSettle();
+      expect(requests.single, ['2026-11-24', 'cet6', 'main_clause']);
+      expect(find.text('当天没有词条缓存。'), findsOneWidget);
+      expect(find.text('复制练习提示词'), findsNothing);
+
+      await tester.tap(find.text('四级'));
+      await tester.tap(find.text('语境填空'));
+      await tester.pumpAndSettle();
+      expect(find.text('在句子中选择合适的词。'), findsOneWidget);
+      await tester.tap(find.text('生成练习 Markdown'));
+      await tester.pumpAndSettle();
+      expect(requests.last, ['2026-11-24', 'cet4', 'cloze']);
+      expect(find.text('候选词 3 个'), findsOneWidget);
+      expect(
+        find.text('2026-11-24_bbdc_exercise_cet4_cloze.md'),
+        findsOneWidget,
+      );
+      expect(find.text('复制练习提示词'), findsOneWidget);
+
+      await tester.tap(find.text('找主干'));
+      await tester.pumpAndSettle();
+      expect(find.text('复制练习提示词'), findsNothing);
+      await tester.tap(find.text('预览'));
+      await tester.pumpAndSettle();
+      expect(find.text('复制全部内容'), findsOneWidget);
+      expect(find.text('每日复习 Prompt'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Changing the study date drops a pending exercise preview', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final export = Completer<Json>();
+    var started = 0;
+    Future<dynamic> host(String method, [List<dynamic> args = const []]) async {
+      switch (method) {
+        case 'initialize':
+          return {'data': sample('2026-11-24')};
+        case 'export_exercise':
+          started++;
+          return export.future;
+        case 'select_day':
+          return sample(args.single as String);
+        default:
+          throw UnsupportedError(method);
+      }
+    }
+
+    await tester.pumpWidget(ReviewApp(call: host));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('分档练习'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('生成练习 Markdown'));
+    await tester.pump();
+    expect(started, 1);
+    expect(find.text('正在生成…'), findsOneWidget);
+    tester
+        .widget<DropdownButton<String>>(find.byType(DropdownButton<String>))
+        .onChanged!('2026-11-23');
+    await tester.pumpAndSettle();
+    export.complete({
+      'filename': 'wrong-date.md',
+      'markdown': '# 旧日期的练习',
+      'word_count': 3,
+    });
+    await tester.pumpAndSettle();
+    expect(find.textContaining('学习日 2026-11-23'), findsOneWidget);
+    expect(find.text('wrong-date.md'), findsNothing);
+    expect(find.text('复制练习提示词'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Review difficulty loads and updates after a successful save', (
     tester,
   ) async {
