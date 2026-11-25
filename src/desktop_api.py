@@ -89,6 +89,9 @@ class DesktopAPI:
     def poll(self) -> dict:
         return self._jobs.poll()
 
+    def cancel_sync(self) -> dict[str, str]:
+        return self._jobs.cancel_sync()
+
     def _close(self, hide: Callable[[], None] | None = None) -> None:
         if message := self._jobs.close(hide):
             import ctypes

@@ -28,7 +28,8 @@ class WorkflowTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         directory = Path(self.temp.name)
-        self.config = replace(load_config(), root=directory, raw_dump_dir=directory / 'raw', state_dir=directory / 'state',
+        self.config = replace(load_config(ROOT / 'config.example.yaml'), root=directory,
+                              raw_dump_dir=directory / 'raw', state_dir=directory / 'state',
                               output_dir=directory / 'output')
         self.payload = json.loads((ROOT / 'tests/fixtures/synthetic_response.json').read_text(encoding='utf-8'))
 
@@ -150,7 +151,7 @@ class WorkflowTests(unittest.TestCase):
         flow_file = directory / 'test.mitm'
         with flow_file.open('wb') as handle:
             io.FlowWriter(handle).add(flow)
-        settings = yaml.safe_load((ROOT / 'config.yaml').read_text(encoding='utf-8'))
+        settings = yaml.safe_load((ROOT / 'config.example.yaml').read_text(encoding='utf-8'))
         settings.update(mode='auto', raw_dump_dir=str(self.config.raw_dump_dir),
                         output_dir=str(self.config.output_dir), state_dir=str(self.config.state_dir))
         config_file = directory / 'config.yaml'

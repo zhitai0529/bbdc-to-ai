@@ -25,7 +25,7 @@ class OfflineExportTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name)
         self.source = root / 'config.yaml'
-        settings = yaml.safe_load((PROJECT_ROOT / 'config.yaml').read_text(encoding='utf-8-sig'))
+        settings = yaml.safe_load((PROJECT_ROOT / 'config.example.yaml').read_text(encoding='utf-8-sig'))
         settings.update(state_dir='./state', output_dir='./output', raw_dump_dir='./raw')
         self.source.write_text(yaml.safe_dump(settings, allow_unicode=True), encoding='utf-8')
         self.config = load_config(self.source)

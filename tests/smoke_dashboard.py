@@ -3,6 +3,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Event
 import sys
 import time
 from unittest.mock import patch
@@ -10,6 +11,7 @@ from unittest.mock import patch
 from src.bbdc_schema import study_date
 from src.config import load_config
 from src.dashboard import DashboardAPI, open_window
+from src.desktop_worker import ExportJobResult
 from src.pipeline import process_payload
 from src.runtime import PROJECT_ROOT
 
@@ -30,6 +32,10 @@ def main() -> None:
                 rows.append(dict(wd=word, ah=ah, rh=rh, st=4, ut=f'{day} 12:00:00'))
             process_payload(rows, config, day, announce=False)
         errors = []
+        sync_cancel_requested = Event()
+        sync_stopped = Event()
+        manager = root / 'MuMuManager.exe'
+        manager.touch()
 
         def exercise(win):
             def until(expression):
@@ -64,6 +70,18 @@ def main() -> None:
                 until("document.querySelector('#markdown h1')?.textContent.includes('每日纠结词')")
                 click('#sourceMode')
                 win.evaluate_js("var e=document.querySelector('#source'); e.value+='\\nUI smoke'; e.dispatchEvent(new Event('input'))")
+                click('[data-action=sync]')
+                until("document.querySelector('#syncLabel').textContent === '停止同步'")
+                assert not win.evaluate_js("document.querySelector('[data-action=sync]').disabled")
+                click('[data-action=sync]')
+                until("document.querySelector('#syncLabel').textContent === '正在停止…'")
+                assert win.evaluate_js("document.querySelector('[data-action=sync]').disabled")
+                assert sync_cancel_requested.wait(timeout=4)
+                sync_worker.request_sync_cancel.assert_called_once_with()
+                sync_stopped.set()
+                until("document.querySelector('#status').textContent.includes('同步已停止')")
+                assert not win.evaluate_js("document.querySelector('#modal').open")
+                assert win.evaluate_js("document.querySelector('#source').value.endsWith('UI smoke')")
                 click('[data-action=copy]')
                 until("document.querySelector('[data-action=copy]').textContent.includes('已复制')")
                 assert clipboard.call_args.args[0].endswith('UI smoke')
@@ -106,7 +124,17 @@ def main() -> None:
             finally:
                 win.destroy()
 
-        with patch('src.desktop_api.load_config', return_value=config), patch('pyperclip.copy') as clipboard:
+        with patch('src.desktop_api.load_config', return_value=config), patch('pyperclip.copy') as clipboard, \
+                patch('src.desktop_jobs.discover_mumu_manager', return_value=manager), \
+                patch('src.desktop_jobs.remember_mumu_manager'), patch('src.desktop_jobs.ExportJob') as worker:
+            sync_worker = worker.return_value
+            sync_worker.scratch.name = str(root / 'worker')
+            sync_worker.sync = True
+            def request_sync_cancel() -> bool:
+                sync_cancel_requested.set()
+                return True
+            sync_worker.request_sync_cancel.side_effect = request_sync_cancel
+            sync_worker.poll.side_effect = lambda: ExportJobResult('cancelled', True) if sync_stopped.is_set() else None
             open_window(DashboardAPI(), exercise)
         if errors:
             raise errors[0]

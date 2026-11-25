@@ -10,6 +10,7 @@ from src.config import load_config
 from src.dashboard import DashboardAPI
 from src.dashboard_data import dashboard, review_path
 from src.exporter import export_review
+from src.history import log_and_count_recent
 from src.parser import WordRecord
 from src.pipeline import process_payload
 from src.runtime import PROJECT_ROOT
@@ -47,6 +48,20 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(past['sidebar']['total'], 3)
         self.assertEqual(past['repeats'], [])
 
+    def test_history_window_can_extend_beyond_the_supported_calendar(self):
+        earliest = date.min
+        earlier = self.day - timedelta(days=10)
+        self.populate(earlier, [('repeat', '110', 'B')])
+        self.populate(self.day, [('repeat', '110', 'B')])
+        log_and_count_recent(self.config.history_path, earliest, [WordRecord('ancient', level='hard')], 7)
+        config = replace(self.config, escalation_window_days=10**20)
+        current = dashboard(config, self.day.isoformat())
+        self.assertEqual(current['stats']['promoted'], 1)
+        self.assertEqual(current['repeats'][0]['days'], 2)
+        oldest = dashboard(config, earliest.isoformat())
+        self.assertEqual([row['day'] for row in oldest['series']], [earliest.isoformat()])
+        self.assertEqual(oldest['stats']['hard'], 1)
+
     def test_imported_markdown_is_readable_without_database(self):
         self.config.output_dir.mkdir()
         path = review_path(self.config.output_dir, self.day)
@@ -69,9 +84,15 @@ class DashboardTests(unittest.TestCase):
             WordRecord('repeat', level='hard'),
             WordRecord('known', level='mastered', source='bbdc-android-5.11.8', raw_rating='0'),
         ], self.config.output_dir, yesterday)
-        legacy = (PROJECT_ROOT / 'examples/synthetic_review.md').read_text(encoding='utf-8')
+        legacy = '\n'.join((
+            f'# {earlier.isoformat()} 不背单词每日纠结词复习 Prompt',
+            '## 本次数据范围',
+            '- 今日去重词汇：4 个；顽固词：1 个；模糊词：1 个。',
+            '- 已熟练掌握：1 个，已剔除。',
+            '- 掌握程度未确认：1 个，暂不参与任务。',
+        ))
         review_path(self.config.output_dir, earlier).write_text(
-            legacy.replace('2026-11-12', earlier.isoformat()), encoding='utf-8-sig')
+            legacy, encoding='utf-8-sig')
         original_history = self.config.history_path.read_bytes()
         original_export = old.read_bytes()
         current = dashboard(self.config)
@@ -111,10 +132,12 @@ class DashboardTests(unittest.TestCase):
             self.api.start('export')
             discover.assert_not_called()
             worker.assert_called_once_with(sync=False, setup=False, manager=None)
+            worker.return_value.sync = False
             with self.assertRaises(ValueError):
                 self.api.start('sync')
             self.api._close()
             worker.return_value.request_cancel.assert_called_once()
+            worker.return_value.wait_for_result.assert_called_once_with()
 
     def test_sync_and_setup_use_discovery_and_remembered_manager(self):
         manager = Path(self.tmp.name) / 'MuMuManager.exe'

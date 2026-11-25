@@ -24,7 +24,8 @@ class ReviewHistoryTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         root = Path(directory.name)
-        self.config = replace(load_config(), root=root, state_dir=root / 'state', output_dir=root / 'output')
+        self.config = replace(load_config(Path(__file__).resolve().parents[1] / 'config.example.yaml'),
+                              root=root, state_dir=root / 'state', output_dir=root / 'output')
 
     def export(self, rows: list[dict[str, str | int]], day: int = 20) -> PipelineResult:
         return process_payload(rows, self.config, DAY.replace(day=day), announce=False)
@@ -84,7 +85,7 @@ class ReviewHistoryTests(unittest.TestCase):
         first = self.export([target])
         self.assertTrue(first.unknown_report.is_file())
         source = self.config.root / 'config.yaml'
-        source.write_bytes((Path(__file__).resolve().parents[1] / 'config.yaml').read_bytes())
+        source.write_bytes((Path(__file__).resolve().parents[1] / 'config.example.yaml').read_bytes())
         rules_file = self.config.root / 'rules.yaml'
         rules_file.write_text(
             "code_rules:\n"

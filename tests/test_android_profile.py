@@ -42,7 +42,8 @@ class AndroidProfileTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.folder = Path(self.temp.name)
-        self.config = replace(load_config(), root=self.folder, raw_dump_dir=self.folder / 'raw',
+        self.config = replace(load_config(Path(__file__).resolve().parents[1] / 'config.example.yaml'),
+                              root=self.folder, raw_dump_dir=self.folder / 'raw',
                               state_dir=self.folder / 'state', output_dir=self.folder / 'output')
 
     def test_confirmed_ratings_and_unknown_codes(self) -> None:

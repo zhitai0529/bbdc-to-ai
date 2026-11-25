@@ -52,7 +52,7 @@ def serve(api: FlutterAPI, requests: TextIO, replies: TextIO) -> None:
     methods = {name: getattr(api, name) for name in (
         'initialize', 'select_day', 'save_prompt', 'save_theme', 'save_review_level', 'export_exercise',
         'open_folder', 'change_folder',
-        'locate_manager', 'download_mumu', 'start', 'poll',
+        'locate_manager', 'download_mumu', 'start', 'poll', 'cancel_sync',
     )}
     try:
         for line in requests:

@@ -62,7 +62,9 @@
             ><select id="dates" aria-label="学习日期"></select
           ></label>
           <button data-action="sync">
-            <i data-lucide="refresh-cw"></i>同步 MuMu</button
+            <span id="startSyncIcon"><i data-lucide="refresh-cw"></i></span>
+            <span id="stopSyncIcon" hidden><i data-lucide="square"></i></span>
+            <span id="syncLabel">同步 MuMu</span></button
           ><button data-action="export">
             <i data-lucide="download"></i>导出今日复习
           </button>

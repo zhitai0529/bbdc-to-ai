@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections import Counter
 from contextlib import closing
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 import sqlite3
 from typing import Any
@@ -21,7 +21,9 @@ from src.version import VERSION
 
 def history_series(conn: sqlite3.Connection, day: date, config: Config) -> list[dict]:
     """Compute each day's promotions using only information available on that day."""
-    first = day - timedelta(days=167)
+    first = date.fromordinal(max(1, day.toordinal() - 167))
+    lookback = min(config.escalation_window_days - 1, day.toordinal() - 1)
+    history_start = date.fromordinal(max(1, first.toordinal() - lookback))
     rows = conn.execute("""
         WITH recent AS (
             SELECT study_date, category, updated_at,
@@ -36,8 +38,7 @@ def history_series(conn: sqlite3.Connection, day: date, config: Config) -> list[
                SUM(category='fuzzy' AND hits<?) AS fuzzy,
                SUM(category='fuzzy' AND hits>=?) AS promoted, MAX(updated_at) AS latest
         FROM recent WHERE study_date>=? GROUP BY study_date ORDER BY study_date
-    """, (config.escalation_window_days - 1,
-          (first - timedelta(days=config.escalation_window_days - 1)).isoformat(), day.isoformat(),
+    """, (lookback, history_start.isoformat(), day.isoformat(),
           *([config.fuzzy_escalation_threshold] * 3), first.isoformat()))
     return [dict(row) for row in rows]
 
@@ -82,7 +83,7 @@ def _snapshot(config: Config, selection: str | None, *, use_history: bool) -> di
                        (SELECT MAX(updated_at) FROM daily_word_log WHERE study_date<=?) AS latest
                 FROM daily_word_log WHERE study_date=?
             """, (today.isoformat(), today.isoformat())).fetchone()
-            first = (day - timedelta(days=config.escalation_window_days - 1)).isoformat()
+            first = date.fromordinal(max(1, day.toordinal() - config.escalation_window_days + 1)).isoformat()
             repeats = [dict(row) for row in conn.execute("""
                 SELECT word, COUNT(*) AS days, MAX(study_date) AS last_day
                 FROM daily_word_log WHERE study_date BETWEEN ? AND ? AND category IN ('hard','fuzzy')

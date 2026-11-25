@@ -83,7 +83,12 @@ class ReviewWindow(ReviewView):
         self.start_export(sync=False)
 
     def sync_and_view(self) -> None:
-        if self.job is None and (manager := self.mumu.select_manager()) is not None:
+        if self.job is not None:
+            if self.job.sync:
+                stopping = self.job.request_sync_cancel()
+                self.open_button.configure(state='disabled', text='正在停止…' if stopping else '正在收尾…')
+                self.status.set('正在停止同步…' if stopping else '同步正在收尾…')
+        elif (manager := self.mumu.select_manager()) is not None:
             self.start_export(sync=True, manager=manager)
 
     def configure_mumu(self) -> None:
@@ -100,7 +105,7 @@ class ReviewWindow(ReviewView):
             self.status.set('无法启动后台任务。')
             messagebox.showerror('启动失败', str(exc), parent=self.root)
             return
-        self.set_busy(True)
+        self.set_busy(True, sync=sync)
         if setup:
             self.status.set('正在配置 MuMu 并检查连接，请稍候。')
         else:
@@ -122,7 +127,7 @@ class ReviewWindow(ReviewView):
             self.root.destroy()
             return
         self.set_busy(False)
-        if result.sync or result.setup:
+        if result.status != 'cancelled' and (result.sync or result.setup):
             # MuMu brings its window forward when it launches the app.
             self.root.attributes('-topmost', True)
             self.root.lift()
@@ -131,7 +136,9 @@ class ReviewWindow(ReviewView):
         self.show_result(result)
 
     def show_result(self, result: ExportJobResult) -> None:
-        if result.setup or (result.sync and result.status in ('app_missing', 'mumu_missing', 'error')):
+        if result.status == 'cancelled':
+            self.status.set(result.message or '同步已停止。需要时可以重新同步。')
+        elif result.setup or (result.sync and result.status in ('app_missing', 'mumu_missing', 'error')):
             self.mumu.show_result(result)
         elif result.status == 'exported' and result.output is not None:
             details = ''
@@ -176,7 +183,10 @@ class ReviewWindow(ReviewView):
             return
         self.closing = True
         self.root.withdraw()
-        self.job.request_cancel()
+        if self.job.sync and not self.job.setup:
+            self.job.request_sync_cancel()
+        else:
+            self.job.request_cancel()
 
 
 def legacy_main(argv: Sequence[str] | None = None, *, startup_warning: str | None = None) -> None:

@@ -184,6 +184,42 @@ class DesktopTests(unittest.TestCase):
         window.mumu.show_result.assert_called_once_with(result)
         self.assertEqual(window.content, '已有复习')
 
+    def test_second_sync_click_stops_job_and_keeps_current_preview(self) -> None:
+        window = ReviewWindow.__new__(ReviewWindow)
+        window.root = Mock()
+        window.open_button = Mock()
+        window.status = Mock()
+        window.mumu = Mock()
+        window.closing = False
+        window.content = '已有复习'
+        window.job = None
+        with patch('src.desktop.ExportJob') as job, patch.object(window, 'set_busy') as set_busy, \
+                patch.object(window, 'start_export', wraps=window.start_export) as start_export:
+            window.sync_and_view()
+            set_busy.assert_called_once_with(True, sync=True)
+            job.return_value.sync = True
+            job.return_value.request_sync_cancel.return_value = True
+            window.sync_and_view()
+            job.return_value.request_sync_cancel.assert_called_once_with()
+            window.open_button.configure.assert_called_once_with(state='disabled', text='正在停止…')
+            window.status.set.assert_called_with('正在停止同步…')
+            start_export.assert_called_once()
+
+            job.return_value.poll.return_value = ExportJobResult('cancelled', True)
+            window.poll()
+            set_busy.assert_called_with(False)
+        self.assertIsNone(window.job)
+        self.assertEqual(window.content, '已有复习')
+        window.status.set.assert_called_with('同步已停止。需要时可以重新同步。')
+        window.root.focus_force.assert_not_called()
+        window.mumu.show_result.assert_not_called()
+
+    def test_sync_button_does_not_cancel_offline_export(self) -> None:
+        window = ReviewWindow.__new__(ReviewWindow)
+        window.job = Mock(sync=False)
+        window.sync_and_view()
+        window.job.request_sync_cancel.assert_not_called()
+
     def test_app_missing_retry_reuses_automatically_found_manager_after_restart(self) -> None:
         with TemporaryDirectory() as folder:
             profile = Path(folder).resolve()
@@ -245,10 +281,11 @@ class DesktopTests(unittest.TestCase):
     def test_closing_busy_window_cancels_active_job(self) -> None:
         window = ReviewWindow.__new__(ReviewWindow)
         window.root = Mock()
-        window.job = Mock()
+        window.job = Mock(sync=True, setup=False)
         window.job.poll.return_value = ExportJobResult('cancelled', True)
         window.close()
-        window.job.request_cancel.assert_called_once_with()
+        window.job.request_sync_cancel.assert_called_once_with()
+        window.job.request_cancel.assert_not_called()
         window.root.withdraw.assert_called_once_with()
         window.root.destroy.assert_not_called()
         window.poll()
@@ -274,7 +311,7 @@ class DesktopTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             source = root / 'config.yaml'
-            settings = yaml.safe_load((PROJECT_ROOT / 'config.yaml').read_text(encoding='utf-8-sig'))
+            settings = yaml.safe_load((PROJECT_ROOT / 'config.example.yaml').read_text(encoding='utf-8-sig'))
             settings.update(output_dir='./output', state_dir='./state', raw_dump_dir='./raw',
                             write_unknown_codes_report=True)
             config_text = yaml.safe_dump(settings, allow_unicode=True, sort_keys=False)

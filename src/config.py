@@ -120,16 +120,18 @@ def load_config(path: Path | str | None = None) -> Config:
     for key in ('record_paths', 'response_date_paths'):
         if not isinstance(rules.get(key, []), list) or not all(isinstance(v, str) and v for v in rules.get(key, [])):
             raise ValueError(f'parser.{key} 必须是路径列表')
-    for key in ('include_undated', 'numeric_proficiency_enabled', 'higher_is_better', 'error_counts_enabled'):
-        if type(rules.get(key, False)) is not bool:
+    for key, default in (('include_undated', False), ('numeric_proficiency_enabled', False),
+                         ('higher_is_better', True), ('error_counts_enabled', False)):
+        if type(rules.get(key, default)) is not bool:
             raise ValueError(f'parser.{key} 必须是布尔值')
     for key in ('hard_threshold', 'mastered_threshold', 'hard_error_threshold', 'fuzzy_error_threshold'):
         value = rules.get(key)
         if type(value) not in (int, float) or not math.isfinite(value):
             raise ValueError(f'parser.{key} 必须是有限数字')
-    if rules['numeric_proficiency_enabled']:
+    if rules.get('numeric_proficiency_enabled', False):
         hard, mastered = rules['hard_threshold'], rules['mastered_threshold']
-        if (rules['higher_is_better'] and hard >= mastered) or (not rules['higher_is_better'] and hard <= mastered):
+        higher_is_better = rules.get('higher_is_better', True)
+        if (higher_is_better and hard >= mastered) or (not higher_is_better and hard <= mastered):
             raise ValueError('熟练度阈值顺序与 higher_is_better 不一致')
     if not 0 < rules['fuzzy_error_threshold'] <= rules['hard_error_threshold']:
         raise ValueError('错误次数阈值必须满足 0 < fuzzy <= hard')

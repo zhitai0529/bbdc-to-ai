@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -96,6 +97,20 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('复制练习提示词'), findsOneWidget);
+
+      await tester.tap(find.text('预览'));
+      await tester.pumpAndSettle();
+      expect(find.text('复制练习提示词'), findsNothing);
+      await tester.tap(find.text('练习'));
+      await tester.pumpAndSettle();
+      expect(find.text('复制练习提示词'), findsOneWidget);
+      expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '语境填空'))
+            .selected,
+        isTrue,
+      );
+      expect(requests, hasLength(2));
 
       await tester.tap(find.text('找主干'));
       await tester.pumpAndSettle();
@@ -319,6 +334,139 @@ void main() {
       expect(find.widgetWithText(Chip, day), findsOneWidget);
     },
   );
+
+  testWidgets('The sync button stops once and allows another sync', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const day = '2026-11-23';
+    final calls = <String>[];
+    final stop = Completer<Json>();
+    var stopped = false;
+    var starts = 0;
+    Future<dynamic> host(String method, [List<dynamic> args = const []]) async {
+      calls.add(method);
+      switch (method) {
+        case 'initialize':
+          return {'data': sample(day)};
+        case 'start':
+          expect(args, ['sync']);
+          starts++;
+          return {'status': 'started'};
+        case 'cancel_sync':
+          expect(args, isEmpty);
+          return stop.future;
+        case 'poll':
+          if (starts == 2) {
+            return {'status': 'no_records', 'message': '暂无新记录。'};
+          }
+          return {'status': stopped ? 'cancelled' : 'running'};
+        default:
+          throw UnsupportedError(method);
+      }
+    }
+
+    await tester.pumpWidget(ReviewApp(call: host));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('复习预览'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('源码编辑'));
+    await tester.pumpAndSettle();
+    const draft = '# 未保存的复习草稿';
+    await tester.enterText(find.byType(TextField), draft);
+    await tester.pump();
+
+    await tester.tap(find.text('同步 MuMu'));
+    await tester.pump();
+    expect(find.text('停止同步'), findsOneWidget);
+    final close = WidgetsBinding.instance.handleRequestAppExit();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('有尚未保存的复习修改。'), findsOneWidget);
+    await tester.tap(find.text('继续编辑'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(await close, AppExitResponse.cancel);
+    await tester.tap(find.text('停止同步'));
+    await tester.pump();
+    final stopping = find.ancestor(
+      of: find.text('正在停止…'),
+      matching: find.byWidgetPredicate((widget) => widget is FilledButton),
+    );
+    expect(tester.widget<FilledButton>(stopping).onPressed, isNull);
+    await tester.tap(stopping);
+    expect(calls.where((name) => name == 'cancel_sync'), hasLength(1));
+
+    stop.complete({'status': 'cancelling'});
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(stopping, findsOneWidget);
+    stopped = true;
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.textContaining('同步已停止'), findsWidgets);
+    expect(find.text(draft), findsOneWidget);
+    expect(find.widgetWithText(Chip, day), findsOneWidget);
+
+    await tester.tap(find.text('同步 MuMu'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(starts, 2);
+    expect(calls, isNot(contains('select_day')));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('A late cancel acknowledgement leaves a completed sync visible', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final stop = Completer<Json>();
+    final calls = <String>[];
+    Future<dynamic> host(String method, [List<dynamic> args = const []]) async {
+      calls.add(method);
+      switch (method) {
+        case 'initialize':
+          return {'data': sample('2026-11-23')};
+        case 'start':
+          return {'status': 'started'};
+        case 'cancel_sync':
+          return stop.future;
+        case 'poll':
+          return {
+            'status': 'exported',
+            'day': '2026-11-24',
+            'message': '已同步到今日记录。',
+          };
+        case 'select_day':
+          return sample(args.single as String);
+        default:
+          throw UnsupportedError(method);
+      }
+    }
+
+    await tester.pumpWidget(ReviewApp(call: host));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('同步 MuMu'));
+    await tester.pump();
+    await tester.tap(find.text('停止同步'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(calls, ['initialize', 'start', 'cancel_sync', 'poll', 'select_day']);
+    stop.complete({'status': 'idle'});
+    await tester.pumpAndSettle();
+    expect(find.text('已同步到今日记录。'), findsWidgets);
+    expect(find.text('同步 MuMu'), findsOneWidget);
+    expect(find.text('正在读取同步结果…'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'Theme changes keep the active Markdown draft and sync both controls',

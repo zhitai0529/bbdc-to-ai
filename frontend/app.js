@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CalendarDays,
   RefreshCw,
+  Square,
   Download,
   Copy,
   Activity,
@@ -39,6 +40,7 @@ const glyphs = {
   ChevronRight,
   CalendarDays,
   RefreshCw,
+  Square,
   Download,
   Copy,
   Activity,
@@ -67,6 +69,7 @@ let data,
   view = "overview",
   editing = false,
   busy = false,
+  syncTask,
   toastTimer,
   copyTimer;
 const drafts = new Map(),
@@ -101,12 +104,19 @@ function controls() {
   const occupied = busy || exercises.pending;
   for (const el of document.querySelectorAll("[data-action]")) {
     const a = el.dataset.action;
+    if (a === "sync") {
+      byId("syncLabel").textContent = syncButtonLabels[syncTask?.phase ?? "idle"];
+      byId("startSyncIcon").hidden = Boolean(syncTask);
+      byId("stopSyncIcon").hidden = !syncTask;
+      el.disabled = !data || (syncTask ? syncTask.phase !== "running" : occupied);
+      continue;
+    }
     el.disabled =
       a === "copy"
         ? !data || !content()
         : a === "save"
           ? occupied || !data || !drafts.has(draftKey())
-          : ["sync", "setup", "export", "change"].includes(a) &&
+          : ["setup", "export", "change"].includes(a) &&
             (occupied || !data);
   }
   byId("dates").disabled = occupied || !data;
@@ -277,11 +287,19 @@ const taskLabels = {
   sync: "同步 MuMu",
   export: "导出今日复习",
 };
+const syncButtonLabels = {
+  idle: taskLabels.sync,
+  running: "停止同步",
+  stopping: "正在停止…",
+  finishing: "正在收尾…",
+};
 async function taskResult(action, result) {
   const configured = result.status === "configured";
   const note =
     result.message ||
-    (configured
+    (result.status === "cancelled"
+      ? "同步已停止。需要时可以重新同步。"
+      : configured
       ? "请在 MuMu 中打开并登录不背单词，再点「同步 MuMu」。"
       : `「${taskLabels[action]}」未完成，请重试。`);
   if (result.day) apply(await api().select_day(result.day));
@@ -299,7 +317,7 @@ async function taskResult(action, result) {
       rootOK ? "通过 " + time : "未完成",
     );
   }
-  if (["exported", "no_records"].includes(result.status)) return;
+  if (["exported", "no_records", "cancelled"].includes(result.status)) return;
 
   const choices = [["ok", "关闭"]];
   if (result.recovery?.includes("download")) {
@@ -366,6 +384,10 @@ async function run(action) {
           : "请关闭助手后重试。";
       throw Error(`「${taskLabels[action]}」未能启动。${guidance}`);
     }
+    if (action === "sync") {
+      syncTask = { phase: "running" };
+      controls();
+    }
     const label = {
       setup: "正在配置 MuMu 并检查连接…",
       sync: "正在打开 MuMu 并同步学习记录…",
@@ -381,15 +403,39 @@ async function run(action) {
       for (const line of (r.lines ?? []).slice(seen)) record(line);
       seen = (r.lines ?? []).length;
       if (r.status === "running") continue;
+      syncTask = undefined;
+      controls();
       await taskResult(action, r);
       break;
     }
   } finally {
+    syncTask = undefined;
     busy = false;
     controls();
   }
 }
+async function stopSync() {
+  const task = syncTask;
+  if (task?.phase !== "running") return;
+  task.phase = "stopping";
+  controls();
+  message("正在停止同步…");
+  try {
+    const result = await api().cancel_sync();
+    if (syncTask === task && result.status !== "cancelling") {
+      task.phase = "finishing";
+      controls();
+      message("同步正在收尾…");
+    }
+  } catch (error) {
+    if (syncTask !== task) return;
+    task.phase = "running";
+    controls();
+    report(error);
+  }
+}
 async function dispatch(action) {
+  if (action === "sync" && syncTask) return stopSync();
   if (["sync", "export", "setup"].includes(action)) return run(action);
   if (action === "open") return api().open_folder();
   if (action === "all") {

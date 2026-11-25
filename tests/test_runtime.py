@@ -4,12 +4,32 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+import yaml
+
 from src import runtime
 from src.config import load_config
 from src.desktop_files import save_output_dir
+from src.parser import classify
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_legacy_config_can_omit_optional_parser_flags(self) -> None:
+        with TemporaryDirectory() as temporary:
+            original = runtime.PROJECT_ROOT / 'config.example.yaml'
+            config_path = Path(temporary) / 'config.yaml'
+            settings = yaml.safe_load(original.read_text(encoding='utf-8'))
+            parser = settings['parser']
+            del parser['numeric_proficiency_enabled']
+            del parser['higher_is_better']
+            config_path.write_text(yaml.safe_dump(settings), encoding='utf-8')
+            config = load_config(config_path)
+            self.assertEqual(classify(None, 0, None, config.parser)[0], 'unclassified')
+
+            parser['numeric_proficiency_enabled'] = True
+            config_path.write_text(yaml.safe_dump(settings), encoding='utf-8')
+            config = load_config(config_path)
+            self.assertEqual(classify(None, 0, None, config.parser)[0], 'hard')
+
     def test_packaged_configuration_uses_per_user_folder(self) -> None:
         with TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()

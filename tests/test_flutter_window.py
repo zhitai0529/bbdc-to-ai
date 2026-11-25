@@ -24,11 +24,13 @@ class FlutterWindowTests(unittest.TestCase):
         api = Mock()
         api.initialize.return_value = {'data': {'prompt': '第一行\n第二行'}}
         api.start.side_effect = ValueError('无可用实例')
+        api.cancel_sync.return_value = {'status': 'idle'}
         requests = StringIO('\n'.join([
             'engine diagnostic',
             json.dumps({'id': 1, 'method': 'initialize'}),
             json.dumps({'id': 2, 'method': 'start', 'args': ['sync']}),
             json.dumps({'id': 3, 'method': '_close'}),
+            json.dumps({'id': 4, 'method': 'cancel_sync'}),
         ]))
         replies = StringIO()
         serve(api, requests, replies)
@@ -36,6 +38,8 @@ class FlutterWindowTests(unittest.TestCase):
         self.assertEqual(output[0]['result']['data']['prompt'], '第一行\n第二行')
         self.assertEqual(output[1]['error'], '无可用实例')
         self.assertIn('error', output[2])
+        self.assertEqual(output[3]['result'], {'status': 'idle'})
+        api.cancel_sync.assert_called_once_with()
         api.start.assert_called_once_with('sync')
         api._close.assert_called_once_with()
 

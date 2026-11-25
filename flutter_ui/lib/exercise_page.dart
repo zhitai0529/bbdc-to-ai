@@ -50,18 +50,17 @@ class _ExercisePageState extends State<ExercisePage> {
   Future<void> _export() async {
     final kind = _selectedKind;
     if (kind == null || _generating || widget.busy) return;
+    final level = _selectedLevel;
     setState(() {
+      // Keep the preview paired with the level used for this exercise.
+      _level = level;
       _generating = true;
       _error = null;
       _result = null;
     });
     try {
       final result =
-          await widget.call('export_exercise', [
-                widget.day,
-                _selectedLevel,
-                kind,
-              ])
+          await widget.call('export_exercise', [widget.day, level, kind])
               as Json;
       if (!mounted) return;
       setState(() {

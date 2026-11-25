@@ -189,10 +189,11 @@ class ReviewView:
         self.preview.see('1.0')
         self.preview.configure(state='disabled')
 
-    def set_busy(self, busy: bool) -> None:
+    def set_busy(self, busy: bool, *, sync: bool = False) -> None:
         state = 'disabled' if busy else 'normal'
-        for button in (self.export_button, self.open_button, self.setup_button, self.change_button):
+        for button in (self.export_button, self.setup_button, self.change_button):
             button.configure(state=state)
+        self.open_button.configure(state='normal' if sync else state, text='停止同步' if sync else '同步 MuMu')
         if busy:
             self.progress.pack(side='right', padx=(12, 0))
             self.progress.start(15)

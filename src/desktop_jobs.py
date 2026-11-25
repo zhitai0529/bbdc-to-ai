@@ -82,23 +82,34 @@ class DesktopJobs:
                     message += f'最近的学习日为 {result.last_day}。'
             elif result.status == 'mumu_missing':
                 self._manager = None
+            elif result.status == 'cancelled':
+                message = '本次同步已停止。可再次点击「同步 MuMu」。'
             return {'status': result.status, 'message': message, 'day': day, 'lines': lines,
                     'reason': result.reason, 'recovery': list(recovery_actions(result.status, result.reason))}
+
+    def cancel_sync(self) -> dict[str, str]:
+        with self._lock:
+            job = self._job
+            if job is None or not job.sync or job.setup:
+                return {'status': 'idle'}
+            return {'status': 'cancelling' if job.request_sync_cancel() else 'finishing'}
 
     def close(self, hide: Callable[[], None] | None = None) -> str | None:
         with self._lock:
             self._closed = True
-            if self._job is None:
-                return None
             job = self._job
+            self._job = None
+        if job is None:
+            return None
+        try:
+            if hide is not None:
+                hide()
+        finally:
             try:
-                job.request_cancel()
-                try:
-                    if hide is not None:
-                        hide()
-                finally:
-                    # Wait for owned MuMu cleanup before the host exits, even if hiding fails.
-                    result = job.cancellation.result()
-                return result.message if result.status == 'error' else None
+                if job.sync and not job.setup:
+                    job.request_sync_cancel()
+                else:
+                    job.request_cancel()
             finally:
-                self._job = None
+                result = job.wait_for_result()
+        return result.message if result.status == 'error' else None

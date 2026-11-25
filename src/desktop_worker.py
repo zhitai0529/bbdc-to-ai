@@ -16,6 +16,7 @@ from typing import Literal
 
 from src.config import PROJECT_ROOT
 from src.runtime import data_directory, is_packaged
+from src.sync_session import claim_sync_stop
 
 
 @dataclass(frozen=True)
@@ -121,11 +122,29 @@ class ExportJob:
             return self.cancellation.result() if self.cancellation.done() else None
         returncode = self.process.poll()
         if returncode is None:
-            if time.monotonic() < self.deadline:
-                return None
-            self.request_cancel('操作超时。请等 MuMu 进入安卓桌面后重试。' if self.sync or self.setup else
-                                '离线导出超时。请检查导出文件夹是否可用后重试。')
+            if time.monotonic() >= self.deadline:
+                self._cancel_timed_out()
             return None
+        return self._collect_result(returncode)
+
+    def wait_for_result(self) -> ExportJobResult:
+        """Collect a closing window's job within its original worker deadline."""
+        if self.cancellation is None:
+            try:
+                returncode = self.process.wait(timeout=max(0, self.deadline - time.monotonic()))
+            except subprocess.TimeoutExpired:
+                self._cancel_timed_out()
+            else:
+                return self._collect_result(returncode)
+        return self.cancellation.result()
+
+    def _cancel_timed_out(self) -> None:
+        message = '操作超时。请等 MuMu 进入安卓桌面后重试。' if self.sync or self.setup else (
+            '离线导出超时。请检查导出文件夹是否可用后重试。'
+        )
+        self.request_cancel(message)
+
+    def _collect_result(self, returncode: int) -> ExportJobResult:
         try:
             if self.output is None:
                 result = self.result_path.read_text(encoding='utf-8')
@@ -140,6 +159,17 @@ class ExportJob:
                                    setup=self.setup)
         finally:
             self.cleanup()
+
+    def request_sync_cancel(self) -> bool:
+        if not self.sync or self.setup:
+            return False
+        if self.cancellation is not None:
+            return True
+        if self.process.poll() is not None or not claim_sync_stop(Path(self.scratch.name)):
+            # Keep polling the original result when the worker has started saving.
+            return False
+        self.request_cancel()
+        return True
 
     def request_cancel(self, timeout_message: str | None = None) -> None:
         if self.cancellation is not None:

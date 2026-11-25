@@ -17,6 +17,8 @@ import 'settings_page.dart';
 import 'sidebar.dart';
 import 'review_session.dart';
 
+enum _SyncPhase { idle, running, stopping, finishing }
+
 class Shell extends StatefulWidget {
   const Shell({
     super.key,
@@ -39,6 +41,9 @@ class _ShellState extends State<Shell> {
   Json? get data => session.data;
   String get content => session.content;
   bool busy = false, copied = false, saving = false;
+  _SyncPhase _syncPhase = _SyncPhase.idle;
+  Future<bool>? _stopRequest;
+  Future<String?>? _exitDialog;
   Timer? copyFeedback;
   int page = 0;
   String status = '正在读取本机记录…', adb = '尚未检查', root = '尚未检查';
@@ -49,11 +54,12 @@ class _ShellState extends State<Shell> {
     super.initState();
     lifecycle = AppLifecycleListener(
       onExitRequested: () async {
-        if (session.hasDrafts && !busy && mounted) {
-          final answer = await ask('关闭复习助手？', '有尚未保存的复习修改。', {
+        if (session.hasDrafts && mounted) {
+          final answer = await (_exitDialog ??= ask('关闭复习助手？', '有尚未保存的复习修改。', {
             'stay': '继续编辑',
             'exit': '放弃修改并关闭',
-          });
+          }));
+          _exitDialog = null;
           if (answer != 'exit') return AppExitResponse.cancel;
         }
         return AppExitResponse.exit;
@@ -183,7 +189,38 @@ class _ShellState extends State<Shell> {
     }
   }
 
+  Future<void> stopSync() async {
+    if (_syncPhase != _SyncPhase.running) return;
+    setState(() {
+      _syncPhase = _SyncPhase.stopping;
+      status = '正在停止同步…';
+    });
+    final request = tasks.cancelSync();
+    _stopRequest = request;
+    try {
+      final accepted = await request;
+      if (accepted || !mounted || _stopRequest != request) return;
+      setState(() {
+        _syncPhase = _SyncPhase.finishing;
+        status = '正在读取同步结果…';
+      });
+    } catch (e) {
+      if (!mounted || _stopRequest != request) return;
+      setState(() => _syncPhase = _SyncPhase.running);
+      notify(e is StateError ? e.message : '暂时无法停止同步，请重试。');
+    }
+  }
+
   Future<void> task(DesktopAction action) => perform(() async {
+    try {
+      await runTask(action);
+    } finally {
+      _stopRequest = null;
+      _syncPhase = _SyncPhase.idle;
+    }
+  });
+
+  Future<void> runTask(DesktopAction action) async {
     if (action == DesktopAction.setup) {
       final choice = await ask(action.label, mumuSetupInstructions, {
         'back': '返回',
@@ -219,6 +256,7 @@ class _ShellState extends State<Shell> {
     }
     setState(() {
       status = action.progress;
+      if (action == DesktopAction.sync) _syncPhase = _SyncPhase.running;
       if (action == DesktopAction.setup) adb = root = '正在检查';
       log(action.progress);
       final message = start['message'] as String?;
@@ -237,6 +275,10 @@ class _ShellState extends State<Shell> {
         setState(() => update.newLines.forEach(log));
       }
       if (update.running) continue;
+      _stopRequest = null;
+      if (action == DesktopAction.sync) {
+        setState(() => _syncPhase = _SyncPhase.idle);
+      }
       if (update.day != null) await refresh(update.day);
       if (!mounted) return;
       if (action == DesktopAction.setup) {
@@ -250,6 +292,7 @@ class _ShellState extends State<Shell> {
       if (action == DesktopAction.setup ||
           (action == DesktopAction.sync &&
               !update.succeeded &&
+              !update.cancelled &&
               update.status != 'no_records')) {
         final choice = await ask(
           update.succeeded ? 'MuMu 配置完成' : '${action.label}未完成',
@@ -264,7 +307,7 @@ class _ShellState extends State<Shell> {
         if (choice == 'locate' && mounted) await locateMumu(action);
       }
     }
-  });
+  }
 
   Future<void> change() => perform(() async {
     if (await session.changeFolder()) {
@@ -287,6 +330,66 @@ class _ShellState extends State<Shell> {
   });
 
   void edit(String text) => setState(() => session.edit(text));
+
+  Widget syncButton(bool ready) {
+    final (label, icon, action, tooltip) = switch (_syncPhase) {
+      _SyncPhase.idle => (
+        '同步 MuMu',
+        Icons.sync,
+        ready && !busy ? () => task(DesktopAction.sync) : null,
+        '从 MuMu 同步学习记录',
+      ),
+      _SyncPhase.running => (
+        '停止同步',
+        Icons.stop_circle_outlined,
+        stopSync,
+        '停止本次同步，可稍后重新同步',
+      ),
+      _SyncPhase.stopping => ('正在停止…', Icons.stop, null, ''),
+      _SyncPhase.finishing => ('正在收尾…', Icons.hourglass_top, null, ''),
+    };
+    final colors = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: FilledButton.icon(
+        onPressed: action,
+        style: _syncPhase == _SyncPhase.running
+            ? FilledButton.styleFrom(
+                backgroundColor: colors.errorContainer,
+                foregroundColor: colors.onErrorContainer,
+              )
+            : null,
+        icon: Icon(icon),
+        label: Text(label),
+      ),
+    );
+  }
+
+  Widget _exercisePage(Json d) => Visibility(
+    key: const ValueKey('exercise-tab'),
+    visible: page == exercisePageIndex,
+    maintainState: true,
+    child: SingleChildScrollView(
+      key: const PageStorageKey(exercisePageIndex),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: ExercisePage(
+        key: ValueKey((d['day'], d['folder'])),
+        call: widget.call,
+        day: d['day'],
+        defaultLevel: d['review_level'] ?? 'postgrad',
+        options: [
+          for (final option in d['exercise_types'] as List? ?? const [])
+            (
+              id: option['id'] as String,
+              label: option['label'] as String,
+              description: option['description'] as String,
+            ),
+        ],
+        busy: busy,
+        openFolder: open,
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -343,13 +446,7 @@ class _ShellState extends State<Shell> {
                                   : (v) => perform(() => refresh(v)),
                               underline: const SizedBox(),
                             ),
-                          FilledButton.icon(
-                            onPressed: busy || d == null
-                                ? null
-                                : () => task(DesktopAction.sync),
-                            icon: const Icon(Icons.sync),
-                            label: const Text('同步 MuMu'),
-                          ),
+                          syncButton(d != null),
                           FilledButton.tonalIcon(
                             onPressed: busy || d == null
                                 ? null
@@ -377,9 +474,12 @@ class _ShellState extends State<Shell> {
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      status,
-                      style: Theme.of(context).textTheme.bodySmall,
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        status,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ),
                   ),
                   if (busy) const LinearProgressIndicator(minHeight: 3),
@@ -391,68 +491,12 @@ class _ShellState extends State<Shell> {
                               child: const Text('重新读取本地记录'),
                             ),
                           )
-                        : SingleChildScrollView(
-                            key: PageStorageKey(page),
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: switch (page) {
-                              0 => Overview(
-                                d,
-                                () => setState(() => page = 2),
-                                busy ? null : (v) => perform(() => refresh(v)),
-                              ),
-                              1 => ReviewPage(
-                                data: d,
-                                content: content,
-                                onEdit: edit,
-                                onSave: busy ? null : save,
-                                dirty: session.hasCurrentDraft,
-                                saving: saving,
-                              ),
-                              2 => HistoryPage(d),
-                              exercisePageIndex => ExercisePage(
-                                key: ValueKey((d['day'], d['folder'])),
-                                call: widget.call,
-                                day: d['day'],
-                                defaultLevel: d['review_level'] ?? 'postgrad',
-                                options: [
-                                  for (final option
-                                      in d['exercise_types'] as List? ??
-                                          const [])
-                                    (
-                                      id: option['id'] as String,
-                                      label: option['label'] as String,
-                                      description:
-                                          option['description'] as String,
-                                    ),
-                                ],
-                                busy: busy,
-                                openFolder: open,
-                              ),
-                              _ => SettingsPage(
-                                data: d,
-                                logs: logs,
-                                adb: adb,
-                                root: root,
-                                setup: busy
-                                    ? null
-                                    : () => task(DesktopAction.setup),
-                                openSite: busy ? null : openMumuSite,
-                                locate: busy
-                                    ? null
-                                    : () => perform(
-                                        () => locateMumu(DesktopAction.setup),
-                                      ),
-                                change: busy ? null : change,
-                                open: open,
-                                mode: widget.mode,
-                                changeTheme: widget.changeTheme == null
-                                    ? null
-                                    : changeTheme,
-                                changeReviewLevel: busy
-                                    ? null
-                                    : changeReviewLevel,
-                              ),
-                            },
+                        : Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              if (page != exercisePageIndex) _reviewPage(d),
+                              _exercisePage(d),
+                            ],
                           ),
                   ),
                 ],
@@ -463,4 +507,41 @@ class _ShellState extends State<Shell> {
       ),
     );
   }
+
+  Widget _reviewPage(Json d) => SingleChildScrollView(
+    key: PageStorageKey(page),
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: switch (page) {
+      0 => Overview(
+        d,
+        () => setState(() => page = 2),
+        busy ? null : (v) => perform(() => refresh(v)),
+      ),
+      1 => ReviewPage(
+        data: d,
+        content: content,
+        onEdit: edit,
+        onSave: busy ? null : save,
+        dirty: session.hasCurrentDraft,
+        saving: saving,
+      ),
+      2 => HistoryPage(d),
+      _ => SettingsPage(
+        data: d,
+        logs: logs,
+        adb: adb,
+        root: root,
+        setup: busy ? null : () => task(DesktopAction.setup),
+        openSite: busy ? null : openMumuSite,
+        locate: busy
+            ? null
+            : () => perform(() => locateMumu(DesktopAction.setup)),
+        change: busy ? null : change,
+        open: open,
+        mode: widget.mode,
+        changeTheme: widget.changeTheme == null ? null : changeTheme,
+        changeReviewLevel: busy ? null : changeReviewLevel,
+      ),
+    },
+  );
 }

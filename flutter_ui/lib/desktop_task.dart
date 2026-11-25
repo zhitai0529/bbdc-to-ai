@@ -35,6 +35,7 @@ class TaskUpdate {
 
   bool get running => status == 'running';
   bool get succeeded => status == 'configured' || status == 'exported';
+  bool get cancelled => status == 'cancelled';
   bool get showDownloads => recovery.contains('download');
   bool get showLocation => recovery.contains('locate');
 
@@ -49,6 +50,7 @@ class TaskUpdate {
     if (status == 'no_records') {
       return message ?? '没有可用的学习记录。请在 App 里完成一组学习，再同步 MuMu。';
     }
+    if (cancelled) return message ?? '同步已停止。可以再次点击「同步 MuMu」。';
     if (status == 'idle') {
       return '后台任务提前结束。请重试「${action.label}」。';
     }
@@ -64,6 +66,8 @@ class DesktopTasks {
 
   Future<Json> start(DesktopAction action) async =>
       await _call('start', [action.name]) as Json;
+  Future<bool> cancelSync() async =>
+      (await _call('cancel_sync') as Json)['status'] == 'cancelling';
   Future<bool> locateMumu() async => await _call('locate_manager') == true;
   Future<void> openMumuSite() async => _call('download_mumu');
 

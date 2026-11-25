@@ -22,6 +22,7 @@ from src.mumu_snapshot import snapshot_rows as snapshot_rows
 from src.parser import parse_time
 from src.pipeline import process_payload
 from src.storage import save_raw, write_json
+from src.sync_session import begin_sync_save
 
 console = Console()
 
@@ -77,6 +78,8 @@ def export_study_day(adb: Adb, config: Config, target: date | None = None, lates
         day, selected = select_day(rows, config, now, target, latest)
         enrich_meanings(adb, rows, protocol['dict_key'], folder,
                         config.root / '.local_setup/dictionary-lookups.json')
+    if scratch_dir is not None:
+        begin_sync_save(scratch_dir)
     write_json(config.state_dir / 'dictionary.json',
                {row['wd'].casefold(): meaning_text(row['meaning']) for row in rows if row['meaning']})
     if announce and target is None and day != study_date(now):
