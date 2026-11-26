@@ -47,6 +47,8 @@ class ExerciseTests(unittest.TestCase):
                     self.assertEqual(saved, result['markdown'])
                     self.assertIn(f'档位为{profile.label}。', saved)
                     self.assertIn('最多出 1 题', saved)
+                    self.assertIn('必须保留的非候选背景词或搭配加中文全角括注', saved)
+                    self.assertIn('候选词及其词形变化、含候选词的搭配，在题目区都不加中文括注', saved)
                     self.assertIn('会提示任何一道题答案的括注都移到答案区', saved)
                     self.assertIn('第一次回复只出题，等待我作答', saved)
                     for other_kind, exercise in EXERCISE_TYPES.items():
