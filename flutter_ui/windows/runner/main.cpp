@@ -21,9 +21,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
   FlutterWindow window(project);
-  Win32Window::Point origin(10, 10);
-  Win32Window::Size size(1200, 800);
-  if (!window.Create(L"\u4e0d\u80cc\u5355\u8bcd\u590d\u4e60\u52a9\u624b v" FLUTTER_VERSION, origin, size)) {
+  Win32Window::Size size(1440, 1020);
+  if (!window.Create(L"\u4e0d\u80cc\u5355\u8bcd\u590d\u4e60\u52a9\u624b v" FLUTTER_VERSION, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);

@@ -3,6 +3,8 @@
 #include <dwmapi.h>
 #include <flutter_windows.h>
 
+#include <algorithm>
+
 #include "resource.h"
 
 namespace {
@@ -120,25 +122,33 @@ Win32Window::~Win32Window() {
   Destroy();
 }
 
-bool Win32Window::Create(const std::wstring& title,
-                         const Point& origin,
-                         const Size& size) {
+bool Win32Window::Create(const std::wstring& title, const Size& size) {
   Destroy();
 
   const wchar_t* window_class =
       WindowClassRegistrar::GetInstance()->GetWindowClass();
 
-  const POINT target_point = {static_cast<LONG>(origin.x),
-                              static_cast<LONG>(origin.y)};
-  HMONITOR monitor = MonitorFromPoint(target_point, MONITOR_DEFAULTTONEAREST);
-  UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
-  double scale_factor = dpi / 96.0;
+  const HMONITOR monitor = MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY);
+  const double scale_factor = FlutterDesktopGetDpiForMonitor(monitor) / 96.0;
+  int width = Scale(size.width, scale_factor);
+  int height = Scale(size.height, scale_factor);
+  int x = CW_USEDEFAULT;
+  int y = CW_USEDEFAULT;
+  MONITORINFO info{};
+  info.cbSize = sizeof(info);
+  if (GetMonitorInfo(monitor, &info)) {
+    const RECT& area = info.rcWork;
+    const int available_width = area.right - area.left;
+    const int available_height = area.bottom - area.top;
+    width = std::min(width, available_width);
+    height = std::min(height, available_height);
+    x = area.left + (available_width - width) / 2;
+    y = area.top + (available_height - height) / 2;
+  }
 
   HWND window = CreateWindow(
       window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
-      Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
-      Scale(size.width, scale_factor), Scale(size.height, scale_factor),
-      nullptr, nullptr, GetModuleHandle(nullptr), this);
+      x, y, width, height, nullptr, nullptr, GetModuleHandle(nullptr), this);
 
   if (!window) {
     return false;

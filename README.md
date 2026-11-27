@@ -6,7 +6,7 @@
 
 [下载 Windows 版](https://github.com/zhitai0529/bbdc-to-ai/releases/latest) · [看使用效果](https://zhitai0529.github.io/bbdc-to-ai/#case-study) · [首次配置](#首次配置-mumu)
 
-![v1.7.1 Windows 实机复习看板，显示合成学习数据](docs/assets/desktop-overview.webp)
+![v1.7.2 白天模式实机截图，完整展示 Windows 复习总览与合成学习数据](docs/assets/desktop-overview.webp)
 
 ## 能做什么
 
@@ -76,7 +76,7 @@ EXE 首次运行会在 `%LOCALAPPDATA%\bbdc-to-ai` 创建独立配置和缓存�
 
 首页展示学习词量、顽固词排行、24 周热力图和熟词占比。图表来自本机 SQLite 与每日缓存，缺记录的日期留空。侧栏的「历史与惯犯词」可查看跨天重复出现的词和当日未知编码。完整 Prompt 在「复习预览」中，修改后点「保存修改」写回复习文件；重新导出会按学习记录重新生成正文。
 
-Windows 版使用 Flutter Material 3 界面。点顶栏主题图标或打开「MuMu 与设置 → 外观主题」，可切换日间、夜间或跟随系统。助手会记住选择，首次启动默认跟随 Windows。窄窗口会收起侧栏，「多日薄弱词」可从「更多操作」打开。可点击热力图中有记录的日期，也可用 Tab 移到日期格后按 Enter。复习预览支持 Markdown 阅读和源码编辑，宽窗口编辑时可左右对照，按 Ctrl+S 保存。桌面布局与组件层级参考了 [FlClash](https://github.com/chen08209/FlClash) 和 [TsumugiSub](https://github.com/nihaina/SubtitleEditforAndroid)。
+Windows 版使用 Flutter Material 3 界面。启动窗口默认居中，大小为 1440 × 1020 逻辑像素，在小屏幕上会缩至可用工作区。点顶栏主题图标或打开「MuMu 与设置 → 外观主题」，可切换日间、夜间或跟随系统。助手会记住选择，首次启动默认跟随 Windows。窄窗口会收起侧栏，「多日薄弱词」可从「更多操作」打开。可点击热力图中有记录的日期，也可用 Tab 移到日期格后按 Enter。复习预览支持 Markdown 阅读和源码编辑，宽窗口编辑时可左右对照，按 Ctrl+S 保存。桌面布局与组件层级参考了 [FlClash](https://github.com/chen08209/FlClash) 和 [TsumugiSub](https://github.com/nihaina/SubtitleEditforAndroid)。
 
 ## 从源码运行
 

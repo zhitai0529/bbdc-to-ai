@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:review_ui/bridge.dart';
 import 'package:review_ui/main.dart';
+import 'package:review_ui/widgets.dart';
 
 Json sample(String day) => {
   'day': day,
@@ -897,6 +898,60 @@ void main() {
     tester.view.physicalSize = const Size(860, 600);
     await tester.pump();
     expect(find.text('预览'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Default Windows viewport shows the full overview', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    // The 1440 × 1020 outer window also includes the Windows title bar and frame.
+    tester.view.physicalSize = const Size(1424, 981);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    Future<dynamic> host(String method, [List<dynamic> args = const []]) async {
+      if (method == 'initialize') {
+        final data = sample('2026-11-24');
+        (data['series'] as List).add({
+          'day': '2026-11-23',
+          'total': 6,
+          'hard': 1,
+          'fuzzy': 2,
+          'mastered': 3,
+          'export_summary': true,
+        });
+        data['errors'] = [
+          for (final word in [
+            'abstract',
+            'confirm',
+            'obscure',
+            'alter',
+            'retain',
+          ])
+            {'word': word, 'wrong': 1, 'promoted': false},
+        ];
+        return {'data': data};
+      }
+      throw UnsupportedError(method);
+    }
+
+    await tester.pumpWidget(ReviewApp(call: host));
+    await tester.pumpAndSettle();
+    for (final title in ['高频错词速览', '每日词量与纠结词趋势', '近期学习热力图', '掌握率趋势']) {
+      final heading = find.text(title);
+      final section = find.ancestor(
+        of: heading,
+        matching: find.byType(Section),
+      );
+      final viewport = find.ancestor(
+        of: heading,
+        matching: find.byType(SingleChildScrollView),
+      );
+      expect(
+        tester.getBottomRight(section).dy,
+        lessThanOrEqualTo(tester.getBottomRight(viewport).dy),
+      );
+    }
     expect(tester.takeException(), isNull);
   });
 
