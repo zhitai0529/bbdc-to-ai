@@ -6,7 +6,7 @@
 
 [下载 Windows 版](https://github.com/zhitai0529/bbdc-to-ai/releases/latest) · [看使用效果](https://zhitai0529.github.io/bbdc-to-ai/#case-study) · [首次配置](#首次配置-mumu)
 
-![Windows 实机的复习看板，显示合成学习数据](docs/assets/desktop-overview.webp)
+![v1.7.1 Windows 实机复习看板，显示合成学习数据](docs/assets/desktop-overview.webp)
 
 ## 能做什么
 
