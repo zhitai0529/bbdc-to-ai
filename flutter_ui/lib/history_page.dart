@@ -17,23 +17,26 @@ class HistoryPage extends StatelessWidget {
       String empty,
     ) {
       if (rows.isEmpty) return Empty(empty);
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          columnSpacing: 30,
-          headingRowHeight: 38,
-          dataRowMinHeight: 38,
-          dataRowMaxHeight: 52,
-          columns: [for (final h in headings) DataColumn(label: Text(h))],
-          rows: [
-            for (final row in rows)
-              DataRow(
-                cells: [
-                  for (final value in row)
-                    DataCell(SelectableText(value?.toString() ?? '—')),
-                ],
-              ),
-          ],
+      return InsetPanel(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columnSpacing: 30,
+            headingRowHeight: 38,
+            dataRowMinHeight: 38,
+            dataRowMaxHeight: 52,
+            columns: [for (final h in headings) DataColumn(label: Text(h))],
+            rows: [
+              for (final row in rows)
+                DataRow(
+                  cells: [
+                    for (final value in row)
+                      DataCell(SelectableText(value?.toString() ?? '—')),
+                  ],
+                ),
+            ],
+          ),
         ),
       );
     }

@@ -55,49 +55,21 @@ class _OverviewState extends State<Overview> {
       final delta = (v == null || y == null)
           ? '较昨日　暂无对比'
           : '较昨日　${signed(v - y)}${i == 3 ? ' / ${promoted == null || previousPromoted == null ? '—' : signed(promoted - previousPromoted)}' : ''}';
-      return Card.filled(
-        margin: EdgeInsets.zero,
-        color: Color.alphaBlend(
-          tones[i].withValues(alpha: .065),
-          c.surfaceContainerLow,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(icons[i], color: tones[i], size: 20),
-                  const SizedBox(width: 7),
-                  Expanded(
-                    child: Text(
-                      names[i],
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                v == null
-                    ? '—'
-                    : i == 3
-                    ? '$v / ${promoted ?? '—'}'
-                    : '$v',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontFeatures: [const FontFeature.tabularFigures()],
-                ),
-              ),
-              Text(delta, style: Theme.of(context).textTheme.labelSmall),
-              Trend(
-                [values(dates(14), (r) => r[key])],
-                [tones[i]],
-                height: 26,
-                mini: true,
-              ),
-            ],
-          ),
+      return _MetricCard(
+        title: names[i],
+        icon: icons[i],
+        tone: tones[i],
+        value: v == null
+            ? '—'
+            : i == 3
+            ? '$v / ${promoted ?? '—'}'
+            : '$v',
+        delta: delta,
+        trend: Trend(
+          [values(dates(14), (r) => r[key])],
+          [tones[i]],
+          height: 28,
+          mini: true,
         ),
       );
     });
@@ -211,7 +183,7 @@ class _OverviewState extends State<Overview> {
     );
     return LayoutBuilder(
       builder: (context, box) {
-        final wide = box.maxWidth >= 850, cols = box.maxWidth >= 700 ? 4 : 2;
+        final wide = box.maxWidth >= 850, cols = box.maxWidth >= 880 ? 4 : 2;
         Widget pair(Widget a, Widget b) => wide
             ? Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,12 +219,90 @@ class _OverviewState extends State<Overview> {
                 ),
               ),
             const SizedBox(height: 16),
-            pair(trend, top),
+            pair(top, trend),
             const SizedBox(height: 14),
             pair(heat, mastery),
           ],
         );
       },
+    );
+  }
+}
+
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({
+    required this.title,
+    required this.icon,
+    required this.tone,
+    required this.value,
+    required this.delta,
+    required this.trend,
+  });
+
+  final String title;
+  final IconData icon;
+  final Color tone;
+  final String value;
+  final String delta;
+  final Widget trend;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return Card.filled(
+      margin: EdgeInsets.zero,
+      color: colors.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: .65)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: tone.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: tone, size: 19),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    style: text.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              value,
+              style: text.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              delta,
+              style: text.labelSmall?.copyWith(color: colors.onSurfaceVariant),
+            ),
+            const SizedBox(height: 6),
+            trend,
+          ],
+        ),
+      ),
     );
   }
 }
@@ -301,18 +351,24 @@ class _Heat extends StatelessWidget {
                               c.primary,
                               (n / max).clamp(.12, 1).toDouble(),
                             )!;
-                      return Tooltip(
-                        message: '$key · ${n == null ? '无记录' : '$n 个词'}',
-                        child: InkWell(
-                          onTap: n == null || onDay == null
-                              ? null
-                              : () => onDay!(key),
-                          child: Container(
-                            height: 13,
-                            margin: const EdgeInsets.all(1.5),
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(3),
+                      return Semantics(
+                        button: n != null && onDay != null,
+                        label: '$key，${n == null ? '无记录' : '$n 个词'}',
+                        child: Tooltip(
+                          message: '$key · ${n == null ? '无记录' : '$n 个词'}',
+                          child: InkWell(
+                            onTap: n == null || onDay == null
+                                ? null
+                                : () => onDay!(key),
+                            borderRadius: BorderRadius.circular(3),
+                            focusColor: c.primary.withValues(alpha: .16),
+                            child: Container(
+                              height: 13,
+                              margin: const EdgeInsets.all(1.5),
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
                             ),
                           ),
                         ),

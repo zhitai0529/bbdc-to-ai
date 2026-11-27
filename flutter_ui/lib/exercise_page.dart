@@ -116,7 +116,20 @@ class _ExercisePageState extends State<ExercisePage> {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('学习日 ${widget.day} · 使用当天待复习词'),
+                        InsetPanel(
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today_outlined,
+                                size: 18,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(child: Text('学习日 ${widget.day}')),
+                              const Text('使用当天待复习词'),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 12),
                         const Text('难度'),
                         const SizedBox(height: 4),
@@ -214,10 +227,14 @@ class _ExercisePageState extends State<ExercisePage> {
                       ],
                     ),
                     const Divider(height: 24),
-                    SelectionArea(
-                      child: MarkdownBody(
-                        data: result.markdown,
-                        imageBuilder: (uri, title, alt) => Text(alt ?? '[图片]'),
+                    InsetPanel(
+                      padding: const EdgeInsets.all(18),
+                      child: SelectionArea(
+                        child: MarkdownBody(
+                          data: result.markdown,
+                          imageBuilder: (uri, title, alt) =>
+                              Text(alt ?? '[图片]'),
+                        ),
                       ),
                     ),
                   ],

@@ -798,7 +798,109 @@ void main() {
     },
   );
 
-  for (final width in [860.0, 1200.0, 1500.0]) {
+  testWidgets('Wide editor supports a live preview and Ctrl+S save', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final saved = <String>[];
+    var prompt = '# 每日提示词';
+    Future<dynamic> host(String method, [List<dynamic> args = const []]) async {
+      if (method == 'initialize') return {'data': sample('2026-11-24')};
+      if (method == 'save_prompt') {
+        expect(args, ['2026-11-24', prompt, '# 键盘保存']);
+        prompt = args[2] as String;
+        saved.add(prompt);
+        return null;
+      }
+      if (method == 'select_day') {
+        expect(args, ['2026-11-24']);
+        return {...sample('2026-11-24'), 'prompt': prompt};
+      }
+      throw UnsupportedError(method);
+    }
+
+    await tester.pumpWidget(ReviewApp(call: host));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('复习预览'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('源码编辑'));
+    await tester.pumpAndSettle();
+    expect(find.text('Markdown 源码'), findsOneWidget);
+    expect(find.text('渲染预览'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '# 键盘保存');
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(saved, ['# 键盘保存']);
+    expect(
+      find.descendant(
+        of: find.byType(SnackBar),
+        matching: find.text('修改已保存到当前的复习文件。'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('有未保存的修改'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Compact shell tolerates 125 percent text', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(860, 900);
+    tester.platformDispatcher.textScaleFactorTestValue = 1.25;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    Future<dynamic> host(String method, [List<dynamic> args = const []]) async {
+      if (method == 'initialize') {
+        return {
+          'data': {...sample('2026-11-24'), 'series': []},
+        };
+      }
+      throw UnsupportedError(method);
+    }
+
+    await tester.pumpWidget(ReviewApp(call: host));
+    await tester.pumpAndSettle();
+    expect(find.text('所选时段暂无记录'), findsWidgets);
+    expect(tester.takeException(), isNull);
+    expect(find.text('预览'), findsOneWidget);
+    await tester.tap(find.text('预览'));
+    await tester.pumpAndSettle();
+    expect(find.text('每日复习 Prompt'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Navigation fits the first frame in either resize direction', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(860, 600);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    Future<dynamic> host(String method, [List<dynamic> args = const []]) async {
+      if (method == 'initialize') return {'data': sample('2026-11-24')};
+      throw UnsupportedError(method);
+    }
+
+    await tester.pumpWidget(ReviewApp(call: host));
+    await tester.pumpAndSettle();
+    expect(find.text('预览'), findsOneWidget);
+    tester.view.physicalSize = const Size(1200, 600);
+    await tester.pump();
+    expect(find.text('复习预览'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    tester.view.physicalSize = const Size(860, 600);
+    await tester.pump();
+    expect(find.text('预览'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final width in [860.0, 1200.0, 1600.0]) {
     testWidgets('Native dashboard and preview at width $width', (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = Size(width, 800);
@@ -873,6 +975,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('跨天反复模糊或答错'), findsOneWidget);
       await tester.tap(find.text(width >= 1140 ? 'MuMu 与设置' : '设置').first);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('一键配置 MuMu'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('一键配置 MuMu'));
       await tester.pump();

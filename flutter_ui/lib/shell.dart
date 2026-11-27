@@ -5,7 +5,6 @@ import 'dart:ui' show AppExitResponse;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'appearance.dart';
 import 'bridge.dart';
 import 'desktop_task.dart';
 import 'exercise_page.dart';
@@ -15,6 +14,7 @@ import 'review_levels.dart';
 import 'review_page.dart';
 import 'settings_page.dart';
 import 'sidebar.dart';
+import 'shell_header.dart';
 import 'review_session.dart';
 
 enum _SyncPhase { idle, running, stopping, finishing }
@@ -475,7 +475,7 @@ class _ShellState extends State<Shell> {
     maintainState: true,
     child: SingleChildScrollView(
       key: const PageStorageKey(exercisePageIndex),
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
       child: ExercisePage(
         key: ValueKey((d['day'], d['folder'])),
         call: widget.call,
@@ -513,98 +513,64 @@ class _ShellState extends State<Shell> {
           Expanded(
             child: Padding(
               padding: EdgeInsets.symmetric(
-                horizontal: wide ? 24 : 14,
-                vertical: 12,
+                horizontal: wide ? 24 : 16,
+                vertical: 18,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 16,
-                    runSpacing: 8,
-                    children: [
-                      Text(
-                        page == 0
-                            ? (d?['today'] == d?['day'] ? '今日复习看板' : '复习看板')
-                            : reviewPageLabels[page],
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          if (d != null)
-                            DropdownButton<String>(
-                              value: d['day'],
-                              items: [
-                                for (final day in d['dates'])
-                                  DropdownMenuItem<String>(
-                                    value: day,
-                                    child: Text(day),
-                                  ),
-                              ],
-                              onChanged: busy ? null : pickDay,
-                              underline: const SizedBox(),
-                            ),
-                          syncButton(d != null),
-                          Tooltip(
-                            message: day == null
-                                ? '用本机记录导出复习'
-                                : '用本机记录导出 $day 的复习',
-                            child: FilledButton.tonalIcon(
-                              onPressed: busy || day == null
-                                  ? null
-                                  : () => task(DesktopAction.export, day: day),
-                              icon: const Icon(Icons.download_outlined),
-                              label: Text(DesktopAction.export.label),
-                            ),
-                          ),
-                          if (page == 0 || page == 1)
-                            OutlinedButton.icon(
-                              onPressed: busy || day == null
-                                  ? null
-                                  : () => exportRange(day),
-                              icon: const Icon(Icons.date_range_outlined),
-                              label: const Text('多日薄弱词'),
-                            ),
-                          if (page != exercisePageIndex)
-                            OutlinedButton.icon(
-                              onPressed: content.isEmpty ? null : copy,
-                              icon: Icon(
-                                copied ? Icons.check : Icons.copy_outlined,
-                              ),
-                              label: Text(copied ? '已复制' : '复制全部内容'),
-                            ),
-                          ThemeMenu(
-                            mode: widget.mode,
-                            onChanged: widget.changeTheme == null
-                                ? null
-                                : changeTheme,
-                          ),
-                        ],
-                      ),
+                  WorkspaceHeader(
+                    title: page == 0
+                        ? (d?['today'] == d?['day'] ? '今日复习看板' : '复习看板')
+                        : reviewPageLabels[page],
+                    mode: widget.mode,
+                    onThemeChanged: widget.changeTheme == null
+                        ? null
+                        : changeTheme,
+                  ),
+                  const SizedBox(height: 18),
+                  ReviewActionBar(
+                    day: day,
+                    today: d?['today'] as String?,
+                    dates: [
+                      for (final date in d?['dates'] as List? ?? const [])
+                        date as String,
                     ],
+                    busy: busy,
+                    copied: copied,
+                    rangeAvailable: (page == 0 || page == 1) && day != null,
+                    copyAvailable: page != exercisePageIndex,
+                    syncButton: syncButton(d != null),
+                    onDay: busy || d == null ? null : pickDay,
+                    onExport: busy || day == null
+                        ? null
+                        : () => task(DesktopAction.export, day: day),
+                    onRange: busy || day == null
+                        ? null
+                        : () => exportRange(day),
+                    onCopy: content.isEmpty ? null : copy,
+                    status: status,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Semantics(
-                      liveRegion: true,
-                      child: Text(
-                        status,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  ),
-                  if (busy) const LinearProgressIndicator(minHeight: 3),
+                  const SizedBox(height: 12),
                   Expanded(
                     child: d == null
                         ? Center(
-                            child: TextButton(
-                              onPressed: initialize,
-                              child: const Text('重新读取本地记录'),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.cloud_off_outlined,
+                                  size: 36,
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
+                                const SizedBox(height: 12),
+                                const Text('还没有读取到本机复习记录'),
+                                const SizedBox(height: 8),
+                                TextButton(
+                                  onPressed: initialize,
+                                  child: const Text('重新读取本地记录'),
+                                ),
+                              ],
                             ),
                           )
                         : Stack(
@@ -626,7 +592,7 @@ class _ShellState extends State<Shell> {
 
   Widget _reviewPage(Json d) => SingleChildScrollView(
     key: PageStorageKey(page),
-    padding: const EdgeInsets.symmetric(vertical: 8),
+    padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
     child: switch (page) {
       0 => Overview(d, () => setState(() => page = 2), busy ? null : pickDay),
       1 => ReviewPage(

@@ -9,33 +9,60 @@ class Section extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final heading = Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: colors.primaryContainer.withValues(alpha: .65),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: colors.onPrimaryContainer, size: 19),
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
+    );
     return Card.filled(
       margin: EdgeInsets.zero,
       color: colors.surfaceContainerLow,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: colors.outlineVariant.withValues(alpha: .5)),
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: .65)),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(icon, color: colors.primary, size: 20),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                if (action != null) action!,
-              ],
+            LayoutBuilder(
+              builder: (context, box) {
+                if (action == null) return heading;
+                if (box.maxWidth < 460) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [heading, const SizedBox(height: 12), action!],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: heading),
+                    const SizedBox(width: 12),
+                    action!,
+                  ],
+                );
+              },
             ),
-            const SizedBox(height: 14),
-            child,
+            const SizedBox(height: 16),
+            SizedBox(width: double.infinity, child: child),
           ],
         ),
       ),
@@ -48,19 +75,62 @@ class Empty extends StatelessWidget {
   final String label;
   final IconData icon;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 22),
-    child: Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Theme.of(context).colorScheme.outline),
-          const SizedBox(height: 8),
-          Text(label, textAlign: TextAlign.center),
-        ],
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 16),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: colors.surfaceContainer,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: colors.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: colors.onSurfaceVariant),
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
+}
+
+class InsetPanel extends StatelessWidget {
+  const InsetPanel({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(14),
+  });
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: .75)),
+      ),
+      child: child,
+    );
+  }
 }
 
 String iso(DateTime d) => d.toIso8601String().substring(0, 10);
@@ -86,7 +156,10 @@ class Trend extends StatelessWidget {
   Widget build(BuildContext context) {
     final numbers = lines.expand((line) => line.whereType<double>()).toList();
     if (numbers.isEmpty && !mini)
-      return SizedBox(height: height, child: const Empty('所选时段暂无记录'));
+      return ConstrainedBox(
+        constraints: BoxConstraints(minHeight: height),
+        child: const Center(child: Empty('所选时段暂无记录')),
+      );
     final max = percent
         ? 100.0
         : numbers.fold<double>(1, (a, b) => a > b ? a : b);

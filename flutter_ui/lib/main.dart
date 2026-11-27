@@ -58,26 +58,56 @@ class _ReviewAppState extends State<ReviewApp> {
     final dark = brightness == Brightness.dark;
     final scheme =
         ColorScheme.fromSeed(
-          seedColor: const Color(0xff0e58c8),
+          seedColor: const Color(0xff1e65ff),
           brightness: brightness,
         ).copyWith(
-          primary: Color(dark ? 0xffaec6ff : 0xff0e58c8),
-          onPrimary: Color(dark ? 0xff002e6c : 0xffffffff),
-          primaryContainer: Color(dark ? 0xff004397 : 0xffd8e2ff),
-          surface: Color(dark ? 0xff1a2130 : 0xfffbf8fd),
-          surfaceContainerLow: Color(dark ? 0xff202a3a : 0xfff5f2f7),
-          surfaceContainer: Color(dark ? 0xff232d40 : 0xffefecf1),
-          surfaceContainerHighest: dark ? const Color(0xff354155) : null,
+          primary: Color(dark ? 0xffaec6ff : 0xff1e65ff),
+          onPrimary: Color(dark ? 0xff102f63 : 0xffffffff),
+          primaryContainer: Color(dark ? 0xff234b88 : 0xffdfe9ff),
+          surface: Color(dark ? 0xff111a29 : 0xfff8fafc),
+          surfaceContainerLowest: Color(dark ? 0xff0f172a : 0xfff8fafc),
+          surfaceContainerLow: Color(dark ? 0xff16202f : 0xffffffff),
+          surfaceContainer: Color(dark ? 0xff1c2737 : 0xfff1f5f9),
+          surfaceContainerHigh: Color(dark ? 0xff263449 : 0xffe7edf4),
+          surfaceContainerHighest: Color(dark ? 0xff324158 : 0xffdfe7f0),
         );
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       fontFamily: 'Microsoft YaHei UI',
       fontFamilyFallback: const ['Segoe UI', 'Microsoft YaHei', 'sans-serif'],
-      scaffoldBackgroundColor: scheme.surface,
+      scaffoldBackgroundColor: scheme.surfaceContainerLowest,
+      focusColor: scheme.primary.withValues(alpha: .1),
+      hoverColor: scheme.primary.withValues(alpha: .045),
       navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: scheme.surfaceContainer,
+        backgroundColor: scheme.surfaceContainerLow,
         indicatorColor: scheme.primaryContainer,
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        selectedIconTheme: IconThemeData(color: scheme.onPrimaryContainer),
+        unselectedIconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+        selectedLabelTextStyle: TextStyle(
+          color: scheme.onSurface,
+          fontWeight: FontWeight.w700,
+        ),
+        unselectedLabelTextStyle: TextStyle(color: scheme.onSurfaceVariant),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: scheme.surfaceContainerLowest,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: scheme.outlineVariant),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      dividerTheme: DividerThemeData(
+        color: scheme.outlineVariant.withValues(alpha: .75),
       ),
     );
   }
