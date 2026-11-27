@@ -67,3 +67,4 @@
 !/docs/assets/
 /docs/assets/*
 !/docs/assets/*.png
+!/docs/assets/*.webp

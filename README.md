@@ -1,22 +1,24 @@
 # 不背单词复习助手（bbdc-to-ai）
 
-把「不背单词」的学习记录整理成一份可预览、复制和保存的每日复习词表。助手筛出答错或拿不准的词，附上中文释义和分类依据，并生成适合发给 AI 的词根联想、记忆钩子和考研长难句拆解提示词。生成的 Markdown 也可以保存到 Obsidian。
+**把「不背单词」里记不牢的词，变成 AI 复习材料。**
 
-- **同步学习记录**：在 Windows 助手里点击「同步 MuMu」，打开 MuMu 里的不背单词同步，再刷新词表。
-- **专注薄弱词**：熟词只计数。同一个词在多天反复模糊或答错时，会优先进入顽固词表。
-- **离线导出和预览**：用电脑上已保存的记录生成 Markdown，在窗口里预览、一键复制，或另选保存位置。
-- **阅读分级**：可选四级、六级或考研。Prompt 会指导 AI 按档位造句，仅给必须保留的超纲背景词加中文括注。
+在 Windows 上用 MuMu 背单词后，助手会从同步记录里筛出答错或拿不准的词，整理成一份 Markdown。把它粘贴给常用的 AI，就能用自己的词表练记忆钩子、分级例句和长难句拆解。
 
-学习记录在本机处理。你决定是否把生成的提示词复制给 AI。想先看看导出内容，可以打开这份 [合成示例](examples/synthetic_review.md)。
+[下载 Windows 版](https://github.com/zhitai0529/bbdc-to-ai/releases/latest) · [看使用效果](https://zhitai0529.github.io/bbdc-to-ai/#case-study) · [首次配置](#首次配置-mumu)
 
-[访问项目主页](https://zhitai0529.github.io/bbdc-to-ai/) · [查看全部版本](https://github.com/zhitai0529/bbdc-to-ai/releases)
+![Windows 实机的复习看板，显示合成学习数据](docs/assets/desktop-overview.webp)
 
-项目主页的下载按钮会打开 GitHub 最新发布页。进入 Assets（附件）即可选择 Windows x64 EXE。
-主页也提供 [DeepSeek 实操案例](https://zhitai0529.github.io/bbdc-to-ai/#case-study)，展示如何把导出的复习词表用到记忆钩子和长难句拆解中。
+## 能做什么
+
+- **按学习日复习。** 选日期后离线导出，可预览、编辑、复制或保存到 Obsidian。助手会保留手改的原件，重导时可以另存副本或确认覆盖。
+- **集中练薄弱词。** 熟词只计数，顽固词和模糊词进复习词表。可合并近 3 或 5 天的薄弱词，按词去重并标明它在哪几天记不牢。
+- **匹配考试难度。** 选四级、六级或考研，生成对应的阅读提示词。也可单独生成语境填空、从句关系或阅读理解等练习。
+
+学习记录在本机处理。把提示词发给 AI 前，可在助手里先查看和编辑。可以先打开 [项目主页](https://zhitai0529.github.io/bbdc-to-ai/) 或查看 [合成导出示例](examples/synthetic_review.md)。
 
 ## 下载 Windows 版
 
-下载 `bbdc-to-ai-windows-x64.exe` 后双击运行。适用于 Windows x64，EXE 内置 Python，无需另行安装。 [下载最新版 EXE](https://github.com/zhitai0529/bbdc-to-ai/releases/latest/download/bbdc-to-ai-windows-x64.exe)
+在 GitHub 最新发布页的 **Assets（附件）** 下载 `bbdc-to-ai-windows-x64.exe`，双击运行。适用于 Windows x64，EXE 已内置 Python。
 
 更新时先关闭旧版，再打开刚下载的 EXE 一次。助手会更新桌面快捷方式，之后可从同一个图标进入最新版。已安装的旧版本和能核对为助手旧发行版的下载副本会清理。仍在运行的旧文件会在释放后，于下次启动时再处理。学习记录、配置和复习文件沿用原来的位置。
 
@@ -191,6 +193,8 @@ output_dir: 'D:/Obsidian/英语复习'
 - `src/pipeline.py` / `review_cache.py` / `storage.py`：组织导出、按学习日维护缓存、原子写文件。
 - `src/history.py`：SQLite 每日记录和跨天统计。
 - `src/exporter.py`：Markdown AI 提示词与未知编码核对报告。
+- `src/review_protection.py`：重导时校验复习文件版本，保留手改或另存副本。
+- `src/range_review.py`：从本机词条缓存独立导出近 3 或 5 天薄弱词。
 - `src/exercise.py`：独立的练习题型规则和 Markdown 导出，从所选学习日的词条缓存读取候选词。
 - `src/launcher.py` / `emulator_proxy.py`：代理进程、临时 CA 与网络恢复。
 - `src/cli.py`：字段检查与离线重放。

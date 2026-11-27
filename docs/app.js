@@ -1,66 +1,49 @@
-/* 主题切换、复制反馈。无第三方依赖。 */
 (function () {
   "use strict";
 
   var root = document.documentElement;
-  var STORAGE_KEY = "bbdc-to-ai.home.appearance";
-  var buttons = Array.prototype.slice.call(
-    document.querySelectorAll("[data-appearance]")
-  );
+  var storageKey = "bbdc-to-ai.home.appearance";
+  var appearanceButtons = Array.prototype.slice.call(document.querySelectorAll("[data-appearance]"));
   var systemDark = window.matchMedia("(prefers-color-scheme: dark)");
   var metaTheme = document.querySelector('meta[name="theme-color"]');
 
-  function remember(preference) {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, preference);
-    } catch (error) {
-      /* 隐私模式下忽略，本次会话仍然生效 */
-    }
-  }
-
-  function resolve(preference) {
+  function resolveTheme(preference) {
     if (preference === "light" || preference === "dark") return preference;
     return systemDark.matches ? "dark" : "light";
   }
 
-  function apply(preference) {
-    var theme = resolve(preference);
+  function applyAppearance(preference) {
+    var theme = resolveTheme(preference);
     root.dataset.preference = preference;
     root.dataset.theme = theme;
     root.style.colorScheme = theme;
-    if (metaTheme) {
-      metaTheme.setAttribute("content", theme === "dark" ? "#141A26" : "#FBF8FD");
-    }
-    buttons.forEach(function (button) {
-      button.setAttribute(
-        "aria-pressed",
-        button.dataset.appearance === preference ? "true" : "false"
-      );
+    if (metaTheme) metaTheme.setAttribute("content", theme === "dark" ? "#10151D" : "#F7F9FC");
+    appearanceButtons.forEach(function (button) {
+      button.setAttribute("aria-pressed", button.dataset.appearance === preference ? "true" : "false");
     });
   }
 
-  // <head> 里的内联脚本已在首次绘制前写入 data-theme，这里接管后续切换。
-  apply(root.dataset.preference || "system");
+  function rememberAppearance(preference) {
+    try { window.localStorage.setItem(storageKey, preference); } catch (error) {}
+  }
 
-  buttons.forEach(function (button) {
+  applyAppearance(root.dataset.preference || "system");
+
+  appearanceButtons.forEach(function (button) {
     button.addEventListener("click", function () {
       var preference = button.dataset.appearance;
-      remember(preference);
-      apply(preference);
+      rememberAppearance(preference);
+      applyAppearance(preference);
     });
   });
 
-  var onSystemChange = function () {
-    if (root.dataset.preference === "system") apply("system");
-  };
-
-  if (typeof systemDark.addEventListener === "function") {
-    systemDark.addEventListener("change", onSystemChange);
-  } else if (typeof systemDark.addListener === "function") {
-    systemDark.addListener(onSystemChange);
+  function onSystemThemeChange() {
+    if (root.dataset.preference === "system") applyAppearance("system");
   }
 
-  /* ---------- 复制反馈 ---------- */
+  if (typeof systemDark.addEventListener === "function") systemDark.addEventListener("change", onSystemThemeChange);
+  else if (typeof systemDark.addListener === "function") systemDark.addListener(onSystemThemeChange);
+
   var toast = document.querySelector(".toast");
   var toastTimer = 0;
 
@@ -69,9 +52,7 @@
     window.clearTimeout(toastTimer);
     toast.textContent = message;
     toast.dataset.visible = "true";
-    toastTimer = window.setTimeout(function () {
-      toast.dataset.visible = "false";
-    }, 2600);
+    toastTimer = window.setTimeout(function () { toast.dataset.visible = "false"; }, 3000);
   }
 
   function fallbackCopy(text) {
@@ -79,90 +60,57 @@
     var area = document.createElement("textarea");
     area.value = text;
     area.setAttribute("readonly", "");
+    area.setAttribute("aria-hidden", "true");
     area.style.position = "fixed";
-    area.style.top = "-1000px";
+    area.style.left = "-9999px";
     area.style.opacity = "0";
     document.body.appendChild(area);
     area.select();
     var copied = false;
-    try {
-      copied = document.execCommand("copy");
-    } catch (error) {
-      copied = false;
-    } finally {
-      area.remove();
-      if (previousFocus) previousFocus.focus({ preventScroll: true });
-    }
+    try { copied = document.execCommand("copy"); } catch (error) { copied = false; }
+    area.remove();
+    if (previousFocus) previousFocus.focus({ preventScroll: true });
     return copied;
   }
 
-  function copy(text, done, failed) {
+  function copyText(text, onSuccess, onFailure) {
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(done, function () {
-        if (fallbackCopy(text)) done();
-        else failed();
+      navigator.clipboard.writeText(text).then(onSuccess, function () {
+        if (fallbackCopy(text)) onSuccess();
+        else onFailure();
       });
       return;
     }
-    if (fallbackCopy(text)) done();
-    else failed();
-  }
-
-  var copyFeedback = new WeakMap();
-  function flash(button, label) {
-    var feedback = copyFeedback.get(button);
-    var original = feedback ? feedback.original : button.textContent;
-    if (feedback) window.clearTimeout(feedback.timer);
-    button.textContent = label;
-    button.dataset.copied = "true";
-    var timer = window.setTimeout(function () {
-      button.textContent = original;
-      delete button.dataset.copied;
-      copyFeedback.delete(button);
-    }, 2400);
-    copyFeedback.set(button, { original: original, timer: timer });
+    if (fallbackCopy(text)) onSuccess();
+    else onFailure();
   }
 
   var promptButton = document.querySelector("[data-copy-prompt]");
   var promptSource = document.getElementById("prompt-source");
+  var feedbackTimer = 0;
+
+  function showCopySuccess() {
+    var label = promptButton.querySelector("[data-copy-label]");
+    if (!label) return;
+    window.clearTimeout(feedbackTimer);
+    label.textContent = "已复制完整 Prompt";
+    promptButton.dataset.copied = "true";
+    feedbackTimer = window.setTimeout(function () {
+      label.textContent = "复制公开示例 Prompt";
+      delete promptButton.dataset.copied;
+    }, 2600);
+  }
 
   if (promptButton && promptSource) {
     promptButton.addEventListener("click", function () {
-      var text = promptSource.content
-        ? promptSource.content.textContent
-        : promptSource.textContent;
-      text = text.replace(/^\n+/, "").replace(/\s+$/, "");
-      copy(
-        text,
-        function () {
-          flash(promptButton, "已复制");
-          announce("已复制完整 Prompt，共 " + text.length + " 个字符，可直接粘贴给 AI。");
-        },
-        function () {
-          announce("浏览器未允许自动复制。请在仓库里打开 examples/synthetic_review.md 手动复制。");
-        }
-      );
+      var source = promptSource.content ? promptSource.content.textContent : promptSource.textContent;
+      var text = source.replace(/^\n+/, "").replace(/\s+$/, "");
+      copyText(text, function () {
+        showCopySuccess();
+        announce("已复制完整公开示例 Prompt，可直接粘贴给你常用的 AI。");
+      }, function () {
+        announce("浏览器未允许自动复制，请打开页面中的“查看完整合成词表”手动复制。");
+      });
     });
   }
-
-  var linkButtons = Array.prototype.slice.call(
-    document.querySelectorAll("[data-copy-link]")
-  );
-
-  var canonical = document.querySelector('link[rel="canonical"]');
-  linkButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
-      var url = canonical ? canonical.href : window.location.href;
-      copy(
-        url,
-        function () {
-          flash(button, "链接已复制");
-          announce("链接已复制。请在电脑浏览器打开本页，再前往 GitHub 下载 Windows 版。");
-        },
-        function () {
-          announce("请手动复制地址栏链接，在电脑上打开本页。");
-        }
-      );
-    });
-  });
 })();
