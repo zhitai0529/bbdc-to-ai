@@ -24,12 +24,15 @@ class TaskUpdate {
     : status = result['status'] as String,
       message = result['message'] as String?,
       day = result['day'] as String?,
+      filename = result['filename'] as String?,
+      copied = result['copied'] == true,
       recovery = (result['recovery'] as List? ?? const []).cast<String>(),
       adbChecked = result['adb_checked'] as bool?,
       rootChecked = result['root_checked'] as bool?;
 
   final String status;
-  final String? message, day;
+  final String? message, day, filename;
+  final bool copied;
   final bool? adbChecked, rootChecked;
   final List<String> newLines, recovery;
 
@@ -64,8 +67,21 @@ class DesktopTasks {
 
   final HostCall _call;
 
-  Future<Json> start(DesktopAction action, {String? day}) async =>
-      await _call('start', [action.name, if (day != null) day]) as Json;
+  Future<Json> start(
+    DesktopAction action, {
+    String? day,
+    String? decision,
+    String? revision,
+  }) async =>
+      await _call('start', [
+            action.name,
+            if (day != null || decision != null) day,
+            if (decision != null) decision,
+            if (revision != null) revision,
+          ])
+          as Json;
+  Future<Json> exportRange(String day, int days) async =>
+      await _call('export_range_review', [day, days]) as Json;
   Future<bool> cancelSync() async =>
       (await _call('cancel_sync') as Json)['status'] == 'cancelling';
   Future<bool> locateMumu() async => await _call('locate_manager') == true;

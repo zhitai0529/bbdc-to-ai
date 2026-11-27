@@ -15,6 +15,7 @@ import time
 from typing import Literal
 
 from src.config import PROJECT_ROOT
+from src.review_protection import ExportChoice
 from src.runtime import data_directory, is_packaged
 from src.sync_session import claim_sync_stop
 
@@ -32,6 +33,8 @@ class ExportJobResult:
     latest_saved_at: datetime | None = None
     setup: bool = False
     reason: str | None = None
+    copied: bool = False
+    warning: str | None = None
 
 
 def parse_result(returncode: int, output_text: str, *, sync: bool, setup: bool = False) -> ExportJobResult:
@@ -48,12 +51,17 @@ def parse_result(returncode: int, output_text: str, *, sync: bool, setup: bool =
         new_count = reply.get('new_word_count')
         target_count = reply.get('target_word_count')
         saved_at = reply.get('latest_saved_at')
+        copied = reply.get('copied', False)
+        warning = reply.get('warning')
         if (not isinstance(output, str) or not output or type(new_count) is not int
-                or type(target_count) is not int or (saved_at is not None and not isinstance(saved_at, str))):
+                or type(target_count) is not int or type(copied) is not bool
+                or (saved_at is not None and not isinstance(saved_at, str))
+                or (warning is not None and not isinstance(warning, str))):
             raise ValueError('导出结果缺少有效的文件路径、词数或记录时间')
         return ExportJobResult(
             'exported', sync, output=Path(output), new_word_count=new_count, target_word_count=target_count,
             latest_saved_at=datetime.fromisoformat(saved_at) if saved_at is not None else None,
+            copied=copied, warning=warning,
         )
 
     if expected_status == 'no_records':
@@ -83,7 +91,8 @@ def python_command() -> tuple[str, dict[str, str]]:
 
 class ExportJob:
     def __init__(self, *, sync: bool, setup: bool = False, manager: Path | None = None,
-                 day: date | None = None) -> None:
+                 day: date | None = None, choice: ExportChoice | None = None,
+                 revision: str | None = None) -> None:
         self.sync = sync
         self.setup = setup
         self.cancellation: Future[ExportJobResult] | None = None
@@ -105,6 +114,8 @@ class ExportJob:
                 command.extend(('--sync-mumu', '--latest'))
             elif not setup and day is not None:
                 command.extend(('--date', day.isoformat()))
+                if choice is not None and revision is not None:
+                    command.extend(('--export-choice', choice, '--expected-revision', revision))
             if sync or setup:
                 command.extend(('--scratch-dir', self.scratch.name))
                 if manager is not None:

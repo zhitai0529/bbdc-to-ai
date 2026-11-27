@@ -42,6 +42,8 @@ class SnapshotExport:
     new_word_count: int
     target_word_count: int
     latest_saved_at: str | None
+    copied: bool = False
+    warning: str | None = None
 
 
 def initialize_protocol(adb: Adb, config: Config) -> dict[str, Any]:
@@ -91,7 +93,8 @@ def export_study_day(adb: Adb, config: Config, target: date | None = None, lates
         raise ValueError(f'{day} 的记录未找到可导出的词条。')
     target_count = sum(word.level in ('hard', 'fuzzy') for word in result.words)
     latest_saved = max((word.learned_at for word in result.parsed.words if word.learned_at), default=None)
-    return SnapshotExport(result.output, result.new_word_count, target_count, latest_saved)
+    return SnapshotExport(result.output, result.new_word_count, target_count, latest_saved,
+                          result.copied, result.warning)
 
 
 def export_snapshot(adb: Adb, config: Config, target: date | None = None, latest: bool = False,
@@ -150,9 +153,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.json:
         print(json.dumps({'status': 'exported', 'output': str(result.path),
                           'new_word_count': result.new_word_count, 'target_word_count': result.target_word_count,
-                          'latest_saved_at': result.latest_saved_at}, ensure_ascii=False))
+                          'latest_saved_at': result.latest_saved_at, 'copied': result.copied,
+                          'warning': result.warning}, ensure_ascii=False))
     else:
         console.print(f'本次新增已保存词 {result.new_word_count} 个，复习词表共 {result.target_word_count} 个。')
+        if result.copied:
+            console.print('原复习文件已保留，新内容已另存为副本。')
     return 0
 
 

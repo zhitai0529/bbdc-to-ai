@@ -70,6 +70,8 @@ let data,
   editing = false,
   busy = false,
   syncTask,
+  manualDate = false,
+  latestSyncedDay,
   toastTimer,
   copyTimer;
 const drafts = new Map(),
@@ -111,12 +113,18 @@ function controls() {
       el.disabled = !data || (syncTask ? syncTask.phase !== "running" : occupied);
       continue;
     }
+    if (a === "latest") {
+      el.hidden = !latestSyncedDay || latestSyncedDay === data?.day;
+      el.disabled = occupied;
+      el.title = latestSyncedDay ? `切换到 ${latestSyncedDay} 的复习` : "";
+      continue;
+    }
     el.disabled =
       a === "copy"
         ? !data || !content()
         : a === "save"
           ? occupied || !data || !drafts.has(draftKey())
-          : ["setup", "export", "change"].includes(a) &&
+          : ["setup", "export", "range", "change"].includes(a) &&
             (occupied || !data);
   }
   byId("dates").disabled = occupied || !data;
@@ -124,10 +132,14 @@ function controls() {
   byId("dot").classList.toggle("busy", occupied);
   exercises.setBlocked(busy);
 }
-function choose(title, body, choices) {
+function choose(title, body, choices, preview = "") {
   const dialog = byId("modal");
   byId("modalTitle").textContent = title;
   byId("modalBody").textContent = body;
+  const markdown = byId("modalMarkdown");
+  markdown.innerHTML = preview ? md.render(preview) : "";
+  markdown.hidden = !preview;
+  dialog.classList.toggle("previewDialog", Boolean(preview));
   const buttons = byId("choices");
   buttons.replaceChildren();
   for (const [value, label] of choices) {
@@ -294,7 +306,7 @@ const syncButtonLabels = {
   stopping: "正在停止…",
   finishing: "正在收尾…",
 };
-async function taskResult(action, result) {
+async function taskResult(action, result, overwriteDraft) {
   const configured = result.status === "configured";
   const note =
     result.message ||
@@ -303,7 +315,20 @@ async function taskResult(action, result) {
       : configured
       ? "请在 MuMu 中打开并登录不背单词，再点「同步 MuMu」。"
       : `「${taskLabels[action]}」未完成，请重试。`);
-  if (result.day) apply(await api().select_day(result.day));
+  if (result.status === "exported" && result.day) {
+    const keepDate = action === "sync" && manualDate;
+    if (action === "sync") latestSyncedDay = keepDate ? result.day : undefined;
+    if (
+      overwriteDraft &&
+      !result.copied &&
+      drafts.get(overwriteDraft.key) === overwriteDraft.draft
+    ) {
+      drafts.delete(overwriteDraft.key);
+    }
+    if (action === "sync" || !result.copied) {
+      apply(await api().select_day(keepDate ? data.day : result.day));
+    }
+  }
   record(note);
   message(note, true);
   if (action === "setup") {
@@ -345,6 +370,7 @@ async function run(action, day) {
   busy = true;
   controls();
   try {
+    let overwriteDraft;
     if (action === "setup") {
       const choice = await choose(
         "一键配置 MuMu",
@@ -360,7 +386,32 @@ async function run(action, day) {
       if (choice === "download") await api().download_mumu();
       if (choice !== "yes") return;
     }
-    let result = day ? await api().start(action, day) : await api().start(action);
+    const key = day != null ? draftKey() : null;
+    const draft = drafts.get(key);
+    let result = draft
+      ? await api().start(action, day, "check")
+      : day
+        ? await api().start(action, day)
+        : await api().start(action);
+    while (result.status === "confirm_export") {
+      const choice = await choose(
+        `重新导出 ${result.day} 的复习？`,
+        [
+          result.message,
+          draft ? "当前还有未保存的修改。覆盖成功后，本次草稿将被清除。" : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        [
+          ["", "取消"],
+          ["overwrite", "覆盖"],
+          ["copy", "另存副本"],
+        ],
+      );
+      if (!choice) return;
+      overwriteDraft = choice === "overwrite" && draft ? { key, draft } : undefined;
+      result = await api().start(action, result.day, choice, result.revision);
+    }
     if (result.status === "choose") {
       const choice = await choose(
         "未找到 MuMu 安装位置",
@@ -406,11 +457,55 @@ async function run(action, day) {
       if (r.status === "running") continue;
       syncTask = undefined;
       controls();
-      await taskResult(action, r);
+      await taskResult(action, r, overwriteDraft);
       break;
     }
   } finally {
     syncTask = undefined;
+    busy = false;
+    controls();
+  }
+}
+async function exportRange() {
+  if (!data || busy || exercises.pending) return;
+  const day = data.day;
+  busy = true;
+  controls();
+  try {
+    const choice = await choose(
+      "导出多日薄弱词",
+      `截至 ${day}（含当天）。合并所选范围内本机记录中的错词和模糊词，每个词列出出现的学习日。`,
+      [
+        ["", "取消"],
+        ["5", "近 5 天"],
+        ["3", "近 3 天"],
+      ],
+    );
+    if (!choice) return;
+    message("正在生成多日薄弱词…");
+    const result = await api().export_range_review(day, Number(choice));
+    const summary = `${result.start_day} 至 ${result.end_day} · ${result.word_count} 个薄弱词`;
+    const body = [summary, result.filename];
+    if (result.missing_days.length) {
+      body.push(`缺少本机词条的学习日：${result.missing_days.join("、")}`);
+    }
+    message(`已保存 ${result.filename}。`);
+    const next = await choose(
+      "多日薄弱词预览",
+      body.join("\n"),
+      [
+        ["", "关闭"],
+        ["open", "打开导出目录"],
+        ["copy", "复制多日复习提示词"],
+      ],
+      result.markdown,
+    );
+    if (next === "open") await api().open_folder();
+    if (next === "copy") {
+      await api().copy(result.markdown);
+      message("已复制多日复习提示词，可粘贴给 AI。", true);
+    }
+  } finally {
     busy = false;
     controls();
   }
@@ -438,6 +533,24 @@ async function stopSync() {
 async function dispatch(action) {
   if (action === "sync" && syncTask) return stopSync();
   if (action === "export") return run(action, data.day);
+  if (action === "range") return exportRange();
+  if (action === "latest") {
+    if (!latestSyncedDay || busy || exercises.pending) return;
+    busy = true;
+    controls();
+    try {
+      const latest = await api().select_day(latestSyncedDay);
+      manualDate = false;
+      latestSyncedDay = undefined;
+      view = "preview";
+      apply(latest);
+      message(data.warning || `已打开 ${data.day} 的复习。`);
+    } finally {
+      busy = false;
+      controls();
+    }
+    return;
+  }
   if (["sync", "setup"].includes(action)) return run(action);
   if (action === "open") return api().open_folder();
   if (action === "all") {
@@ -483,6 +596,8 @@ async function dispatch(action) {
     try {
       if (await api().change_folder()) {
         apply(await api().select_day(null));
+        manualDate = false;
+        latestSyncedDay = undefined;
         message("已更新导出目录。", true);
       }
     } finally {
@@ -507,6 +622,7 @@ byId("dates").onchange = async (e) => {
   controls();
   try {
     apply(await api().select_day(selected));
+    manualDate = true;
     message(data.warning || "已切换至 " + selected + " 的记录。");
   } catch (err) {
     e.target.value = data.day;

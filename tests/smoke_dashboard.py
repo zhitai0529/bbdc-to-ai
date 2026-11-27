@@ -11,6 +11,7 @@ from unittest.mock import patch
 from src.bbdc_schema import study_date
 from src.config import load_config
 from src.dashboard import DashboardAPI, open_window
+from src.desktop_files import review_path
 from src.desktop_worker import ExportJobResult
 from src.pipeline import process_payload
 from src.runtime import PROJECT_ROOT
@@ -89,9 +90,37 @@ def main() -> None:
                 until("document.querySelector('#status').textContent.includes('修改已保存')")
                 click('#renderMode')
                 until("document.querySelector('#markdown').textContent.includes('UI smoke')")
+                click('[data-action=export]')
+                until("document.querySelector('#modal').open && document.querySelector('#modalTitle').textContent.includes('重新导出')")
+                click('#choices button:first-child')
+                until("!document.querySelector('#modal').open && !document.querySelector('[data-action=export]').disabled")
+                assert review_path(config.output_dir, today).read_text(encoding='utf-8').endswith('UI smoke')
+
                 win.evaluate_js("var d=document.querySelector('#dates');d.selectedIndex=1;d.dispatchEvent(new Event('change'))")
                 until("document.querySelector('#status').textContent.includes('已切换')")
                 exercise_day = win.evaluate_js("document.querySelector('#dates').value")
+                sync_worker.poll.side_effect = lambda: ExportJobResult(
+                    'exported', True, output=review_path(config.output_dir, today),
+                    new_word_count=1, target_word_count=4,
+                )
+                click('[data-action=sync]')
+                until("!document.querySelector('[data-action=latest]').hidden && !document.querySelector('[data-action=latest]').disabled")
+                assert win.evaluate_js("document.querySelector('#dates').value") == exercise_day
+
+                click('[data-action=range]')
+                until("document.querySelector('#modalTitle').textContent === '导出多日薄弱词'")
+                click('#choices button:last-child')
+                until("document.querySelector('#modalMarkdown h1')?.textContent.includes('多日薄弱词')")
+                range_day = today - timedelta(days=1)
+                range_file, = config.output_dir.glob(f'{range_day - timedelta(days=2)}_to_{range_day}_bbdc_range_review_*.md')
+                click('#choices button:last-child')
+                until("document.querySelector('#status').textContent.includes('已复制多日')")
+                assert clipboard.call_args.args[0] == range_file.read_text(encoding='utf-8')
+
+                click('[data-action=latest]')
+                until(f"document.querySelector('#dates').value === '{today}'")
+                win.evaluate_js("var d=document.querySelector('#dates');d.selectedIndex=1;d.dispatchEvent(new Event('change'))")
+                until("document.querySelector('#status').textContent.includes('已切换')")
                 click('[data-view=exercise]')
                 until("!document.querySelector('#exercise').hidden && !document.querySelector('#generateExercise').disabled")
                 assert win.evaluate_js("document.querySelector('[data-action=copy]').hidden")

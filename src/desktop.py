@@ -141,13 +141,15 @@ class ReviewWindow(ReviewView):
         elif result.setup or (result.sync and result.status in ('app_missing', 'mumu_missing', 'error')):
             self.mumu.show_result(result)
         elif result.status == 'exported' and result.output is not None:
-            details = ''
+            details = '原文件已保留，当前显示新生成的副本。' if result.copied else ''
             if result.sync and result.new_word_count is not None:
-                details = f'本次新增已保存词 {result.new_word_count} 个。'
+                details += f'本次新增已保存词 {result.new_word_count} 个。'
             if result.target_word_count is not None:
                 details += f'复习词表共 {result.target_word_count} 个。'
             if result.latest_saved_at is not None:
                 details += f'App 最新记录时间 {result.latest_saved_at:%m/%d %H:%M}。'
+            if result.warning:
+                details += result.warning
             self.open_review(result.output, '同步成功，复习已刷新' if result.sync else '复习已导出', details)
         elif result.sync:
             message = f'{result.day} 同步后没有可导出的学习记录。请在 App 完成一组学习后再同步。'

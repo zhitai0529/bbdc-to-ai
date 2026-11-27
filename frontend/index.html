@@ -68,6 +68,9 @@
           ><button data-action="export">
             <i data-lucide="download"></i>导出复习
           </button>
+          <button data-action="range" title="以所选学习日为截止日，合并近 3 或 5 天的薄弱词">
+            <i data-lucide="calendar-range"></i>多日薄弱词
+          </button>
           <button class="primary" data-action="copy">
             <i data-lucide="copy"></i><span>复制全部内容</span>
           </button>
@@ -75,6 +78,7 @@
       </header>
       <div class="status" role="status">
         <span id="dot"></span><span id="status">正在读取本地学习记录…</span>
+        <button class="link" data-action="latest" hidden>查看最新</button>
       </div>
 
       <section id="overview" class="view">
@@ -256,9 +260,10 @@
       </section>
     </main>
     <div id="toast" role="status" hidden></div>
-    <dialog id="modal">
+    <dialog id="modal" aria-labelledby="modalTitle">
       <h2 id="modalTitle"></h2>
       <p id="modalBody"></p>
+      <article id="modalMarkdown" class="markdown" hidden></article>
       <div id="choices" class="actions"></div>
     </dialog>
     <script>

@@ -99,13 +99,17 @@ class _ShellState extends State<Shell> {
     }
   }
 
-  void notify(String msg) {
+  void notify(String msg, {SnackBarAction? action}) {
     if (!mounted) return;
     setState(() => status = msg);
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
+        SnackBar(
+          content: Text(msg),
+          behavior: SnackBarBehavior.floating,
+          action: action,
+        ),
       );
   }
 
@@ -129,11 +133,13 @@ class _ShellState extends State<Shell> {
     }
   }
 
-  Future<void> refresh(String? day) async {
-    await session.selectDay(day);
+  Future<void> refresh(String? day, {bool? pin}) async {
+    await session.selectDay(day, pin: pin);
     if (!mounted) return;
     setState(() => status = session.loadStatus);
   }
+
+  Future<void> pickDay(String? day) => perform(() => refresh(day, pin: true));
 
   Future<String?> ask(String title, String body, Map<String, String> choices) =>
       showDialog<String>(
@@ -234,8 +240,40 @@ class _ShellState extends State<Shell> {
       }
       if (choice != 'go') return;
     }
-    var start = await tasks.start(action, day: day);
+    Draft? overwriteDraft;
+    final hasDraft =
+        action == DesktopAction.export &&
+        day == data?['day'] &&
+        session.hasCurrentDraft;
+    var start = await tasks.start(
+      action,
+      day: day,
+      decision: hasDraft ? 'check' : null,
+    );
     if (!mounted) return;
+    while (start['status'] == 'confirm_export') {
+      final exportDay = start['day'] as String;
+      final reason =
+          start['message'] as String? ?? '$exportDay 的复习文件已有修改或来自旧版。';
+      final reviewDecision = await ask(
+        '重新导出 $exportDay 的复习',
+        '$reason\n\n另存副本会把新生成的 Prompt 写入另一个文件。'
+            '${hasDraft ? '\n当前还有未保存草稿。选择覆盖后，确认时的草稿会在新文件写入成功后丢弃。' : ''}',
+        const {'cancel': '取消', 'overwrite': '覆盖', 'copy': '另存副本'},
+      );
+      if (!mounted || reviewDecision == null || reviewDecision == 'cancel')
+        return;
+      overwriteDraft = reviewDecision == 'overwrite'
+          ? session.currentDraft
+          : null;
+      start = await tasks.start(
+        action,
+        day: exportDay,
+        decision: reviewDecision,
+        revision: start['revision'] as String,
+      );
+      if (!mounted) return;
+    }
     if (start['status'] == 'choose') {
       final choice = await ask('未找到 MuMu 安装位置', mumuLocationInstructions, {
         'back': '返回',
@@ -284,16 +322,44 @@ class _ShellState extends State<Shell> {
       if (action == DesktopAction.sync) {
         setState(() => _syncPhase = _SyncPhase.idle);
       }
-      if (update.day != null) await refresh(update.day);
+      final finishedDay = update.day;
+      final pinned = action == DesktopAction.sync ? session.pinnedDay : null;
+      final offerLatest =
+          update.succeeded &&
+          pinned != null &&
+          finishedDay != null &&
+          pinned != finishedDay;
+      if (finishedDay != null &&
+          (action == DesktopAction.sync || !update.copied)) {
+        if (action == DesktopAction.export &&
+            update.succeeded &&
+            overwriteDraft != null) {
+          session.discardCurrentDraft(overwriteDraft);
+        }
+        await refresh(pinned ?? finishedDay);
+      }
       if (!mounted) return;
       if (action == DesktopAction.setup) {
         final stamp = TimeOfDay.now().format(context);
         adb = adbPassed ? '通过 $stamp' : '未完成';
         root = rootPassed ? '通过 $stamp' : '未完成';
       }
-      final message = update.guidance(action);
+      final message = update.copied && action == DesktopAction.export
+          ? '新复习已另存为 ${update.filename ?? '独立文件'}。'
+          : update.guidance(action);
       log(message);
-      notify(message);
+      notify(
+        message,
+        action: offerLatest
+            ? SnackBarAction(
+                label: '查看最新',
+                onPressed: () =>
+                    perform(() => refresh(finishedDay, pin: false)),
+              )
+            : update.copied
+            ? SnackBarAction(label: '打开导出目录', onPressed: open)
+            : null,
+      );
       if (action == DesktopAction.setup ||
           (action == DesktopAction.sync &&
               !update.succeeded &&
@@ -313,6 +379,39 @@ class _ShellState extends State<Shell> {
       }
     }
   }
+
+  Future<void> exportRange(String day) => perform(() async {
+    final days = await ask(
+      '多日薄弱词',
+      '以 $day 为截止学习日（含当天），合并本机记录里的顽固词和模糊词。',
+      const {'cancel': '取消', '3': '近 3 天', '5': '近 5 天'},
+    );
+    if (!mounted || days == null || days == 'cancel') return;
+    setState(() => status = '正在合并近 $days 天的薄弱词…');
+    final result = await tasks.exportRange(day, int.parse(days));
+    if (!mounted) return;
+    final filename = result['filename'] as String;
+    final missing = (result['missing_days'] as List).cast<String>();
+    notify('已导出 ${result['word_count']} 个薄弱词。');
+    final next = await ask(
+      '薄弱词已合并',
+      '${result['start_day']} 至 ${result['end_day']} · ${result['word_count']} 个薄弱词\n'
+          '$filename${missing.isEmpty ? '' : '\n缺少本机词条缓存：${missing.join('、')}'}',
+      const {'close': '关闭', 'folder': '打开导出目录', 'copy': '复制合并 Prompt'},
+    );
+    if (!mounted) return;
+    if (next == 'folder') await open();
+    if (next == 'copy') {
+      try {
+        await Clipboard.setData(
+          ClipboardData(text: result['markdown'] as String),
+        );
+        notify('已复制合并复习 Prompt，可粘贴到常用的 AI。');
+      } catch (_) {
+        notify('无法复制。请打开导出目录查看 $filename。');
+      }
+    }
+  });
 
   Future<void> change() => perform(() async {
     if (await session.changeFolder()) {
@@ -447,9 +546,7 @@ class _ShellState extends State<Shell> {
                                     child: Text(day),
                                   ),
                               ],
-                              onChanged: busy
-                                  ? null
-                                  : (v) => perform(() => refresh(v)),
+                              onChanged: busy ? null : pickDay,
                               underline: const SizedBox(),
                             ),
                           syncButton(d != null),
@@ -465,6 +562,14 @@ class _ShellState extends State<Shell> {
                               label: Text(DesktopAction.export.label),
                             ),
                           ),
+                          if (page == 0 || page == 1)
+                            OutlinedButton.icon(
+                              onPressed: busy || day == null
+                                  ? null
+                                  : () => exportRange(day),
+                              icon: const Icon(Icons.date_range_outlined),
+                              label: const Text('多日薄弱词'),
+                            ),
                           if (page != exercisePageIndex)
                             OutlinedButton.icon(
                               onPressed: content.isEmpty ? null : copy,
@@ -523,11 +628,7 @@ class _ShellState extends State<Shell> {
     key: PageStorageKey(page),
     padding: const EdgeInsets.symmetric(vertical: 8),
     child: switch (page) {
-      0 => Overview(
-        d,
-        () => setState(() => page = 2),
-        busy ? null : (v) => perform(() => refresh(v)),
-      ),
+      0 => Overview(d, () => setState(() => page = 2), busy ? null : pickDay),
       1 => ReviewPage(
         data: d,
         content: content,

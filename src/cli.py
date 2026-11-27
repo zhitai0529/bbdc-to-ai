@@ -94,7 +94,8 @@ def main() -> int:
         console.print(f'已检查 {len(files)} 个文件；候选 {candidates} 条；缺日期 {undated}，'
                       f'非目标日期 {other_date}，日期无效 {invalid_date}；失败 {failures}。')
         if latest and latest.output:
-            show_success(latest.words, latest.output, date.fromisoformat(latest.output.name[:10]), latest.unknown_report)
+            show_success(latest.words, latest.output, date.fromisoformat(latest.output.name[:10]),
+                         latest.unknown_report, warning=latest.warning)
         else:
             console.print('[yellow]没有符合日期和拼写映射的记录，未生成文件。请先 inspect 检查字段映射。[/yellow]')
         return 1 if failures or latest is None else 0

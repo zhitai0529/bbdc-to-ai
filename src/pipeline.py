@@ -12,12 +12,13 @@ from rich.console import Console
 from rich.table import Table
 
 from src.config import Config
-from src.exporter import export_review, export_unknown_codes
+from src.exporter import export_unknown_codes, render_review
 from src.envelope import unwrap_payload
 from src.bbdc_schema import is_bbdc, study_date
 from src.history import count_prior_days, log_and_count_recent
 from src.parser import ParseResult, WordRecord, parse_payload
 from src.review_cache import ReviewCache, merge_reviews
+from src.review_protection import ExportChoice, write_daily_review
 
 console = Console()
 
@@ -29,6 +30,8 @@ class PipelineResult:
     output: Path | None
     unknown_report: Path | None = None
     new_word_count: int = 0
+    copied: bool = False
+    warning: str | None = None
 
 
 def escalate(word: WordRecord, counts: dict[str, int], config: Config) -> WordRecord:
@@ -59,17 +62,19 @@ def process_payload(payload: Any, config: Config, target_date: date | None = Non
         return PipelineResult(parsed, [], None)
     result = _merge_and_export(parsed, config, today)
     if announce and result.output is not None:
-        show_success(result.words, result.output, today, result.unknown_report)
+        show_success(result.words, result.output, today, result.unknown_report, warning=result.warning)
     return result
 
 
-def export_cached_day(config: Config, day: date) -> PipelineResult:
+def export_cached_day(config: Config, day: date, *, choice: ExportChoice | None = None,
+                      revision: str | None = None) -> PipelineResult:
     """应用当前规则并重新生成已保存在本机的指定学习日。"""
-    return _merge_and_export(ParseResult(), config, day, record_history=False)
+    return _merge_and_export(ParseResult(), config, day, record_history=False, choice=choice, revision=revision)
 
 
 def _merge_and_export(parsed: ParseResult, config: Config, day: date, *,
-                      record_history: bool = True) -> PipelineResult:
+                      record_history: bool = True, choice: ExportChoice | None = None,
+                      revision: str | None = None) -> PipelineResult:
     if not parsed.words and not config.state_dir.is_dir():
         return PipelineResult(parsed, [], None)
     config.state_dir.mkdir(parents=True, exist_ok=True)
@@ -90,13 +95,20 @@ def _merge_and_export(parsed: ParseResult, config: Config, day: date, *,
                     key = word.spelling.casefold()
                     counts[key] = counts.get(key, 0) + 1
         review_words = [escalate(word, counts, config) for word in merged]
-        destination = export_review(review_words, config.output_dir, day, review_level=config.review_level)
-        unknown_report = export_unknown_codes(merged, config.output_dir, day,
-                                              enabled=config.write_unknown_codes_report)
-    return PipelineResult(parsed, review_words, destination, unknown_report, new_word_count)
+        markdown = render_review(review_words, day, review_level=config.review_level)
+        destination, copied = write_daily_review(config, day, markdown, choice=choice, revision=revision)
+        unknown_report, warning = None, None
+        if not copied:
+            try:
+                unknown_report = export_unknown_codes(merged, config.output_dir, day,
+                                                      enabled=config.write_unknown_codes_report)
+            except OSError:
+                warning = '复习文件已保存，未知编码报告未能更新。请检查报告是否被占用。'
+    return PipelineResult(parsed, review_words, destination, unknown_report, new_word_count, copied, warning)
 
 
-def show_success(words: list[WordRecord], destination: Path, today: date, unknown_report: Path | None = None) -> None:
+def show_success(words: list[WordRecord], destination: Path, today: date, unknown_report: Path | None = None,
+                 *, warning: str | None = None) -> None:
     console.print('[bold green]✓ 已提取学习记录并生成每日复习 Prompt[/bold green]')
     console.print(str(destination), markup=False)
     table = Table(title=f'{today.isoformat()} 已捕获词汇（按拼写去重）')
@@ -110,3 +122,5 @@ def show_success(words: list[WordRecord], destination: Path, today: date, unknow
     console.print(f'其中跨天惯犯自动提级：{sum(word.escalation_count > 0 for word in words)} 个')
     if unknown_report is not None:
         console.print(f'未知编码报告：{unknown_report}', markup=False)
+    if warning is not None:
+        console.print(warning, style='yellow', markup=False)

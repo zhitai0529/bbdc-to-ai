@@ -6,7 +6,7 @@ import html
 from pathlib import Path
 
 from src.parser import WordRecord, collect_unknown_codes
-from src.review_levels import DEFAULT_REVIEW_LEVEL, REVIEW_LEVELS, ReviewLevel
+from src.review_levels import DEFAULT_REVIEW_LEVEL, REVIEW_LEVELS, ReviewLevel, ReviewLevelProfile
 from src.storage import atomic_write
 
 
@@ -16,6 +16,10 @@ LADDER_EXAMPLE = '  \n'.join((
     '│　 └── that once served as a library → 定语从句修饰 castle',
     '└── to check the date → 目的状语，说明 examined 的目的',
 ))
+
+
+def review_path(directory: Path, day: date) -> Path:
+    return directory / f'{day.isoformat()}_bbdc_review.md'
 
 
 def cell(value: object) -> str:
@@ -67,6 +71,13 @@ def export_unknown_codes(words: list[WordRecord], output_dir: Path, day: date, *
 
 def export_review(words: list[WordRecord], output_dir: Path, target_date: date, *,
                   review_level: ReviewLevel = DEFAULT_REVIEW_LEVEL) -> Path:
+    destination = review_path(output_dir, target_date)
+    atomic_write(destination, render_review(words, target_date, review_level=review_level))
+    return destination
+
+
+def render_review(words: list[WordRecord], target_date: date, *,
+                  review_level: ReviewLevel = DEFAULT_REVIEW_LEVEL) -> str:
     profile = REVIEW_LEVELS[review_level]
     hard_words = [word for word in words if word.level == 'hard']
     fuzzy_words = [word for word in words if word.level == 'fuzzy']
@@ -87,7 +98,7 @@ def export_review(words: list[WordRecord], output_dir: Path, target_date: date, 
                  '初学的数字编码表示本轮答错次数（9 为封顶值）。'
                  '本轮直接认识或初学未答错按当前策略剔除，不保证永久掌握。已确认编码的错误数表示本轮错误。'
                  if any(w.source == 'bbdc-android-5.11.8' for w in words) else '')
-    content = f'''# {target_date.isoformat()} 不背单词每日纠结词复习 Prompt
+    return f'''# {target_date.isoformat()} 不背单词每日纠结词复习 Prompt
 
 请担任我的英语记忆教练与阅读语法教师，直接完成下面两个任务。
 
@@ -114,7 +125,11 @@ def export_review(words: list[WordRecord], output_dir: Path, target_date: date, 
 
 {word_table(fuzzy_words)}
 
-## 任务一：新词与顽固词 3 秒记忆钩子
+{review_tasks(profile)}'''
+
+
+def review_tasks(profile: ReviewLevelProfile, *, date_scope: str = '今日') -> str:
+    return f'''## 任务一：新词与顽固词 3 秒记忆钩子
 
 只针对 hard_words，逐词输出记忆锚点表：
 
@@ -134,7 +149,7 @@ def export_review(words: list[WordRecord], output_dir: Path, target_date: date, 
 1. 通常每句包含 {profile.target_words} 个不同目标词。按语义分组，覆盖所有目标词；如果同句放不下，就拆成多句。可使用常见功能词和必要的语境词，不额外添加学习目标。
 2. 词形变化允许，但须在速查中回指原词。一组词太少或组合不自然时，可以用更少的目标词造句，不用熟词凑数。
 3. 每句先展示完整英文原句，再另起一行给出准确的整句中文翻译。英文原句按以下规则排版：
-   - **今日目标词只加粗，不给中文括注。** 目标词以 hard_words 和 fuzzy_words 为准，大小写或词形变化不改变其身份。即使目标词超出当前档位，也只能写 `**目标词**`。含目标词的整个搭配也不作括注。目标词的中文义留在原句之外的整句翻译、阶梯拆解或词汇速查中。
+   - **{date_scope}目标词只加粗，不给中文括注。** 目标词以 hard_words 和 fuzzy_words 为准，大小写或词形变化不改变其身份。即使目标词超出当前档位，也只能写 `**目标词**`。含目标词的整个搭配也不作括注。目标词的中文义留在原句之外的整句翻译、阶梯拆解或词汇速查中。
    - **只有超出当前档位、确实需要保留的非目标背景词或搭配才加中文括注。** 优先换成常用表达。必须保留时，在本句首次出现处写 `背景词（语境义）`，不加粗。不另塞生词来凑括注。未提供考试词表时，按该档位读者对这个用法的熟悉程度估计。
    - 格式示例：假设 `retain` 在目标词表中，`seismographs` 是需保留的超纲背景词。英文原句写 `The museum **retained** two old seismographs（地震仪） so students could see how earthquakes were measured.`，不写 `**retained**（保留）`。示例词不计入本次目标。
    - 输出前逐句检查英文原句里的中文括注。若括注翻译了目标词（含其变形），或翻译了含目标词的搭配，就从英文原句中删去该括注。
@@ -147,8 +162,5 @@ def export_review(words: list[WordRecord], output_dir: Path, target_date: date, 
 {LADDER_EXAMPLE}
 
 每句底部必须附【核心词汇速查】：列出本句实际使用的目标词、原词、语境义和关键搭配。
-最后给出目标词覆盖清单，检查是否遗漏。若两组都为空，明确说明今日暂无可生成的已确认目标词，不要编造词汇或句子。
+最后给出目标词覆盖清单，检查是否遗漏。若两组都为空，明确说明{date_scope}暂无可生成的已确认目标词，不要编造词汇或句子。
 '''
-    destination = output_dir / f'{target_date.isoformat()}_bbdc_review.md'
-    atomic_write(destination, content)
-    return destination

@@ -213,6 +213,40 @@ class DesktopBridgeTests(unittest.TestCase):
         self.assertIn('复习预览', result['result']['message'])
         self.assertEqual(saved.read_text(encoding='utf-8'), '# Existing Markdown')
 
+    def test_export_confirmation_is_returned_before_starting_and_binds_the_worker(self) -> None:
+        day = date(2026, 11, 23)
+        self.config.state_dir.mkdir()
+        self.config.output_dir.mkdir()
+        ReviewCache(self.config, day).save([WordRecord('cached', level='hard')])
+        saved = review_path(self.config.output_dir, day)
+        saved.write_text('# Hand-edited Markdown', encoding='utf-8')
+        with patch('src.desktop_jobs.ExportJob') as worker:
+            prompted = self.api.start('export', day.isoformat())
+            self.assertEqual(prompted['status'], 'confirm_export')
+            self.assertEqual(prompted['day'], day.isoformat())
+            worker.assert_not_called()
+            with self.assertRaisesRegex(ValueError, '确认文件版本'):
+                self.api.start('export', day.isoformat(), 'overwrite')
+            worker.assert_not_called()
+            result = self.api.start('export', day.isoformat(), 'copy', prompted['revision'])
+            worker.assert_called_once_with(sync=False, setup=False, manager=None, day=day,
+                                           choice='copy', revision=prompted['revision'])
+        self.assertEqual(result['status'], 'started')
+
+    def test_range_bridge_returns_separate_prompt_with_available_dates(self) -> None:
+        day = date(2026, 11, 23)
+        self.config.state_dir.mkdir()
+        ReviewCache(self.config, day).save([WordRecord('cached', level='hard')])
+        bad, exported = self.call_host(('export_range_review', [day.isoformat(), '3']),
+                                       ('export_range_review', [day.isoformat(), 3]))
+        self.assertIn('请选择近 3 天或近 5 天', bad['error'])
+        result = exported['result']
+        self.assertEqual(result['start_day'], '2026-11-21')
+        self.assertEqual(result['missing_days'], ['2026-11-21', '2026-11-22'])
+        self.assertEqual(result['word_count'], 1)
+        self.assertIn('| cached |', result['markdown'])
+        self.assertFalse(review_path(self.config.output_dir, day).exists())
+
     def test_sync_can_be_cancelled_and_restarted_without_closing_window(self) -> None:
         manager = self.root / 'MuMuManager.exe'
         manager.touch()

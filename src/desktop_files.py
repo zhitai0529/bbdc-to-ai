@@ -13,6 +13,7 @@ from yaml.nodes import MappingNode, ScalarNode
 from filelock import FileLock, Timeout
 
 from src.config import Config, load_config
+from src.exporter import review_path as review_path
 from src.review_levels import parse_review_level
 from src.runtime import default_config_path
 from src.storage import atomic_write
@@ -22,19 +23,18 @@ def load_output_dir(config_path: Path | None = None) -> Path:
     return load_config(config_path).output_dir
 
 
-def review_path(directory: Path, day: date) -> Path:
-    return directory / f'{day.isoformat()}_bbdc_review.md'
-
-
 def save_review_prompt(config: Config, day: date, original: str, content: str) -> None:
     path = review_path(config.output_dir, day)
+
+    def verify_original() -> None:
+        if path.read_text(encoding='utf-8-sig') != original:
+            raise ValueError('复习文件已被重新导出或修改，当前草稿还在。'
+                             '请先「复制全部内容」备份草稿，再重启助手查看最新文件。')
+
     try:
         config.state_dir.mkdir(parents=True, exist_ok=True)
         with FileLock(str(config.state_dir / '.pipeline.lock'), timeout=5):
-            if path.read_text(encoding='utf-8-sig') != original:
-                raise ValueError('复习文件已被重新导出或修改，当前草稿还在。'
-                                 '请先「复制全部内容」备份草稿，再重启助手查看最新文件。')
-            atomic_write(path, content)
+            atomic_write(path, content, before_replace=verify_original)
     except FileNotFoundError as exc:
         raise ValueError('找不到这份复习文件，当前草稿还在。'
                          '请先「复制全部内容」备份草稿，再到导出目录检查文件是否被移动。') from exc

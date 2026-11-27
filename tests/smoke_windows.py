@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 from src.config import PROJECT_ROOT, load_config
 from src.desktop_files import save_review_level
 from src.pipeline import process_payload
+from src.review_protection import review_confirmation
 from src.version import VERSION
 
 
@@ -57,10 +58,11 @@ def main() -> None:
         env = {**os.environ, 'LOCALAPPDATA': str(profile), 'PATH': str(Path(os.environ['SystemRoot']) / 'System32')}
         app_data = profile / 'bbdc-to-ai'
 
-        def run_worker(name: str, code: int) -> dict:
+        def run_worker(name: str, code: int, *options: str) -> dict:
             reply_path = area / f'{name}.json'
             result = subprocess.run(
-                [str(executable), '--run-worker', 'src.offline_export', str(reply_path), '--date', day.isoformat()],
+                [str(executable), '--run-worker', 'src.offline_export', str(reply_path), '--date', day.isoformat(),
+                 *options],
                 cwd=area, env=env, timeout=60,
             )
             if result.returncode != code:
@@ -97,6 +99,12 @@ def main() -> None:
         assert '| opaque | 不透明的 | 复习不会 | 1 |' in markdown
         assert '阅读练习难度：四级。' in markdown
         assert not (config.output_dir / f'{day}_unknown_codes.md').exists()
+        destination.write_text('# 手改复习', encoding='utf-8')
+        revision = review_confirmation(config, day, has_draft=False)
+        assert revision is not None
+        copy = run_worker('copy', 0, '--export-choice', 'copy', '--expected-revision', revision)
+        assert copy['copied'] and Path(copy['output']).read_text(encoding='utf-8') == markdown
+        assert destination.read_text(encoding='utf-8') == '# 手改复习'
         subprocess.run([str(executable), '--check-dashboard'], env=env, cwd=area, timeout=65, check=True)
         theme = app_data / 'appearance-theme.txt'
         theme.write_text('dark\n', encoding='utf-8')

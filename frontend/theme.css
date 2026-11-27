@@ -315,6 +315,9 @@ select {
   background: #a17aff !important;
   animation: pulse 1s infinite alternate;
 }
+.status button {
+  white-space: nowrap;
+}
 @keyframes pulse {
   to {
     opacity: 0.35;
@@ -729,10 +732,19 @@ dialog {
   border-radius: 15px;
   max-width: 465px;
 }
-dialog p {
+#modalBody {
   white-space: pre-line;
   margin: 14px 0 20px;
   color: #c2cadb;
+}
+dialog.previewDialog {
+  width: 740px;
+  max-width: calc(100vw - 32px);
+}
+#modalMarkdown {
+  max-height: 46vh;
+  overflow: auto;
+  margin-bottom: 18px;
 }
 dialog .actions {
   justify-content: flex-end;

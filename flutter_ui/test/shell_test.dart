@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:review_ui/bridge.dart';
 import 'package:review_ui/main.dart';
@@ -86,6 +87,224 @@ void main() {
     await tester.pumpAndSettle();
     expect(selected, [earlier, earlier]);
     expect(tester.widget<DropdownButton<String>>(dates).value, earlier);
+  });
+
+  testWidgets('Re-export keeps the draft until overwrite succeeds', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const day = '2026-11-24', draft = '# 未保存的内容';
+    const rebuilt = '# 重新生成的内容';
+    const copy = '2026-11-24_bbdc_review_copy.md';
+    final decisions = <String>[];
+    var failOverwrite = true;
+    var refreshes = 0;
+    Future<dynamic> host(String method, [List<dynamic> args = const []]) async {
+      switch (method) {
+        case 'initialize':
+          return {'data': sample(day)};
+        case 'start':
+          if (args.length == 3) {
+            expect(args, ['export', day, 'check']);
+            return {
+              'status': 'confirm_export',
+              'day': day,
+              'revision': 'file-revision',
+              'message': '复习文件已修改。',
+            };
+          }
+          expect(args, [
+            'export',
+            day,
+            anyOf('copy', 'overwrite'),
+            'file-revision',
+          ]);
+          decisions.add(args[2] as String);
+          return {'status': 'started'};
+        case 'poll':
+          if (decisions.last == 'copy') {
+            return {
+              'status': 'exported',
+              'day': day,
+              'copied': true,
+              'filename': copy,
+            };
+          }
+          if (failOverwrite) return {'status': 'error', 'message': '写入失败。'};
+          return {'status': 'exported', 'day': day, 'message': '写入成功。'};
+        case 'select_day':
+          refreshes++;
+          return sample(day)..['prompt'] = rebuilt;
+        default:
+          throw UnsupportedError(method);
+      }
+    }
+
+    await tester.pumpWidget(ReviewApp(call: host));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('复习预览'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('源码编辑'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), draft);
+    await tester.pump();
+
+    Future<void> choose(String label) async {
+      await tester.tap(find.text('导出复习'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(find.text('重新导出 $day 的复习'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, label));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+    }
+
+    await choose('取消');
+    expect(decisions, isEmpty);
+    expect(find.text(draft), findsOneWidget);
+    await choose('另存副本');
+    expect(decisions, ['copy']);
+    expect(refreshes, 0);
+    expect(find.textContaining(copy), findsWidgets);
+    expect(find.text(draft), findsOneWidget);
+    await choose('覆盖');
+    expect(find.text(draft), findsOneWidget);
+    expect(find.text('有未保存的修改'), findsOneWidget);
+
+    failOverwrite = false;
+    await choose('覆盖');
+    expect(decisions, ['copy', 'overwrite', 'overwrite']);
+    expect(refreshes, 1);
+    expect(find.text(rebuilt), findsOneWidget);
+    expect(find.text(draft), findsNothing);
+    expect(find.text('有未保存的修改'), findsNothing);
+  });
+
+  testWidgets('A successful sync keeps a manually selected day and draft', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const latest = '2026-11-24', earlier = '2026-11-23';
+    const draft = '# 留在历史日期的草稿';
+    final selected = <String>[];
+    Future<dynamic> host(String method, [List<dynamic> args = const []]) async {
+      switch (method) {
+        case 'initialize':
+          return {'data': sample(latest)};
+        case 'select_day':
+          final day = args.single as String;
+          selected.add(day);
+          return sample(day);
+        case 'start':
+          expect(args, ['sync']);
+          return {'status': 'started'};
+        case 'poll':
+          return {'status': 'exported', 'day': latest, 'message': '已同步到最新记录。'};
+        default:
+          throw UnsupportedError(method);
+      }
+    }
+
+    await tester.pumpWidget(ReviewApp(call: host));
+    await tester.pumpAndSettle();
+    final dates = find.byType(DropdownButton<String>);
+    await tester.tap(dates);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(earlier).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('复习预览'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('源码编辑'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), draft);
+    await tester.pump();
+
+    await tester.tap(find.text('同步 MuMu'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    expect(selected, [earlier, earlier]);
+    expect(tester.widget<DropdownButton<String>>(dates).value, earlier);
+    expect(find.text(draft), findsOneWidget);
+
+    await tester.tap(find.text('查看最新'));
+    await tester.pumpAndSettle();
+    expect(selected, [earlier, earlier, latest]);
+    expect(tester.widget<DropdownButton<String>>(dates).value, latest);
+    expect(find.text(draft), findsNothing);
+    await tester.tap(dates);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(earlier).last);
+    await tester.pumpAndSettle();
+    expect(find.text(draft), findsOneWidget);
+  });
+
+  testWidgets('Multi-day review is separate from the selected daily review', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const day = '2026-11-23', filename = '2026-11-23_bbdc_5d_review.md';
+    const markdown = '# 近 5 天的独立提示词';
+    String? copied;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map)['text'] as String;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    final requests = <List<dynamic>>[];
+    Future<dynamic> host(String method, [List<dynamic> args = const []]) async {
+      switch (method) {
+        case 'initialize':
+          return {'data': sample(day)};
+        case 'export_range_review':
+          requests.add(args);
+          return {
+            'filename': filename,
+            'markdown': markdown,
+            'start_day': '2026-11-19',
+            'end_day': day,
+            'word_count': 3,
+            'missing_days': ['2026-11-21'],
+          };
+        default:
+          throw UnsupportedError(method);
+      }
+    }
+
+    await tester.pumpWidget(ReviewApp(call: host));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('多日薄弱词'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.textContaining('$day 为截止学习日'), findsOneWidget);
+    await tester.tap(find.text('近 5 天'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(requests.single, [day, 5]);
+    expect(find.textContaining(filename), findsOneWidget);
+    expect(find.textContaining('缺少本机词条缓存：2026-11-21'), findsOneWidget);
+    await tester.tap(find.text('复制合并 Prompt'));
+    await tester.pumpAndSettle();
+    expect(copied, markdown);
+    await tester.tap(find.text('复习预览'));
+    await tester.pumpAndSettle();
+    expect(find.text('每日提示词'), findsOneWidget);
   });
 
   testWidgets(

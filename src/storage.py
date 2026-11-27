@@ -1,6 +1,7 @@
 """本地原子写入与按接口路径备份。原始数据可能含个人信息，不应提交。"""
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 import json
 import os
@@ -12,7 +13,7 @@ from urllib.parse import unquote, urlsplit
 from uuid import uuid4
 
 
-def atomic_write(path: Path, content: str) -> None:
+def atomic_write(path: Path, content: str, *, before_replace: Callable[[], None] | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     name: str | None = None
     try:
@@ -22,6 +23,8 @@ def atomic_write(path: Path, content: str) -> None:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
+        if before_replace is not None:
+            before_replace()
         os.replace(name, path)
     finally:
         if name is not None and Path(name).exists():

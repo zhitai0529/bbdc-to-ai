@@ -18,11 +18,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument('--config', type=Path)
     parser.add_argument('--date', type=date.fromisoformat, help='学习日，默认按当地凌晨 4 点切换')
     parser.add_argument('--json', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--export-choice', choices=('copy', 'overwrite'), help=argparse.SUPPRESS)
+    parser.add_argument('--expected-revision', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     try:
         config = load_config(args.config)
         day = args.date or study_date(datetime.now(config.timezone))
-        result = export_cached_day(config, day)
+        result = export_cached_day(config, day, choice=args.export_choice, revision=args.expected_revision)
         if result.output is None:
             latest = max((cached for cached in cached_study_days(config.state_dir) if cached < day), default=None)
             if args.json:
@@ -38,9 +40,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             latest_saved = max((word.learned_at for word in result.words if word.learned_at), default=None)
             print(json.dumps({'status': 'exported', 'output': str(result.output),
                               'new_word_count': result.new_word_count, 'target_word_count': count,
-                              'latest_saved_at': latest_saved}, ensure_ascii=False))
+                              'latest_saved_at': latest_saved, 'copied': result.copied,
+                              'warning': result.warning}, ensure_ascii=False))
         else:
-            show_success(result.words, result.output, day, result.unknown_report)
+            show_success(result.words, result.output, day, result.unknown_report, warning=result.warning)
+            if result.copied:
+                print('原复习文件已保留，新内容已另存为副本。')
     except Exception as exc:
         if args.json:
             print(json.dumps({'status': 'error', 'message': str(exc)}, ensure_ascii=False))
