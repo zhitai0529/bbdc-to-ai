@@ -248,6 +248,7 @@ function renderView() {
 function apply(d) {
   data = d;
   exercises.update(d);
+  document.querySelector('[data-action="export"]').title = `用本机记录导出 ${d.day} 的复习`;
   byId("reviewLevel").value = d.review_level ?? "postgrad";
   byId("version").textContent = "v" + d.version;
   byId("dates").replaceChildren(
@@ -285,7 +286,7 @@ function setChecks(adb, root) {
 const taskLabels = {
   setup: "一键配置 MuMu",
   sync: "同步 MuMu",
-  export: "导出今日复习",
+  export: "导出复习",
 };
 const syncButtonLabels = {
   idle: taskLabels.sync,
@@ -339,7 +340,7 @@ async function taskResult(action, result) {
     );
   }
 }
-async function run(action) {
+async function run(action, day) {
   if (busy || exercises.pending) return;
   busy = true;
   controls();
@@ -359,7 +360,7 @@ async function run(action) {
       if (choice === "download") await api().download_mumu();
       if (choice !== "yes") return;
     }
-    let result = await api().start(action);
+    let result = day ? await api().start(action, day) : await api().start(action);
     if (result.status === "choose") {
       const choice = await choose(
         "未找到 MuMu 安装位置",
@@ -391,7 +392,7 @@ async function run(action) {
     const label = {
       setup: "正在配置 MuMu 并检查连接…",
       sync: "正在打开 MuMu 并同步学习记录…",
-      export: "正在使用本机记录导出今日复习…",
+      export: day ? `正在用本机记录导出 ${day} 的复习…` : "正在用本机记录导出复习…",
     }[action];
     message(label);
     record(label);
@@ -436,7 +437,8 @@ async function stopSync() {
 }
 async function dispatch(action) {
   if (action === "sync" && syncTask) return stopSync();
-  if (["sync", "export", "setup"].includes(action)) return run(action);
+  if (action === "export") return run(action, data.day);
+  if (["sync", "setup"].includes(action)) return run(action);
   if (action === "open") return api().open_folder();
   if (action === "all") {
     view = "history";

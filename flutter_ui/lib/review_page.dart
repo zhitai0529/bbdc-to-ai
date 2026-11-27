@@ -92,9 +92,9 @@ class _ReviewPageState extends State<ReviewPage> {
           const SizedBox(height: 14),
           if (!exists)
             Empty(
-              widget.data['day'] == widget.data['today']
-                  ? '今天还没有复习文件。可点「导出今日复习」，或点「同步 MuMu」获取最新学习记录。'
-                  : '这一天还没有复习文件。可从顶部日期菜单选择其他学习日。',
+              widget.data['codes_available'] == true
+                  ? '这一天还没有复习文件。点「导出复习」可用本机记录生成。'
+                  : '这一天还没有复习文件。可切换学习日，或点「同步 MuMu」获取最新学习记录。',
               icon: Icons.description_outlined,
             )
           else ...[

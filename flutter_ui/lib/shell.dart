@@ -211,16 +211,16 @@ class _ShellState extends State<Shell> {
     }
   }
 
-  Future<void> task(DesktopAction action) => perform(() async {
+  Future<void> task(DesktopAction action, {String? day}) => perform(() async {
     try {
-      await runTask(action);
+      await runTask(action, day: day);
     } finally {
       _stopRequest = null;
       _syncPhase = _SyncPhase.idle;
     }
   });
 
-  Future<void> runTask(DesktopAction action) async {
+  Future<void> runTask(DesktopAction action, {String? day}) async {
     if (action == DesktopAction.setup) {
       final choice = await ask(action.label, mumuSetupInstructions, {
         'back': '返回',
@@ -234,7 +234,7 @@ class _ShellState extends State<Shell> {
       }
       if (choice != 'go') return;
     }
-    var start = await tasks.start(action);
+    var start = await tasks.start(action, day: day);
     if (!mounted) return;
     if (start['status'] == 'choose') {
       final choice = await ask('未找到 MuMu 安装位置', mumuLocationInstructions, {
@@ -248,17 +248,22 @@ class _ShellState extends State<Shell> {
         return;
       }
       if (choice != 'locate' || !await tasks.locateMumu() || !mounted) return;
-      start = await tasks.start(action);
+      start = await tasks.start(action, day: day);
       if (!mounted) return;
     }
     if (start['status'] != 'started') {
-      throw StateError('未在所选文件夹找到 MuMu。请从 MuMu 图标打开程序所在位置，重新选择该文件夹。');
+      throw StateError(
+        action == DesktopAction.export
+            ? '无法启动离线导出。请重新打开助手后再试。'
+            : '未在所选文件夹找到 MuMu。请从 MuMu 图标打开程序所在位置，重新选择该文件夹。',
+      );
     }
+    final progress = day == null ? action.progress : '正在导出 $day 的复习…';
     setState(() {
-      status = action.progress;
+      status = progress;
       if (action == DesktopAction.sync) _syncPhase = _SyncPhase.running;
       if (action == DesktopAction.setup) adb = root = '正在检查';
-      log(action.progress);
+      log(progress);
       final message = start['message'] as String?;
       if (message != null && message.isNotEmpty) log(message);
     });
@@ -394,6 +399,7 @@ class _ShellState extends State<Shell> {
   @override
   Widget build(BuildContext context) {
     final d = data;
+    final day = d?['day'] as String?;
     final wide = MediaQuery.sizeOf(context).width >= 1140;
     return Scaffold(
       body: Row(
@@ -447,12 +453,17 @@ class _ShellState extends State<Shell> {
                               underline: const SizedBox(),
                             ),
                           syncButton(d != null),
-                          FilledButton.tonalIcon(
-                            onPressed: busy || d == null
-                                ? null
-                                : () => task(DesktopAction.export),
-                            icon: const Icon(Icons.download_outlined),
-                            label: const Text('导出今日复习'),
+                          Tooltip(
+                            message: day == null
+                                ? '用本机记录导出复习'
+                                : '用本机记录导出 $day 的复习',
+                            child: FilledButton.tonalIcon(
+                              onPressed: busy || day == null
+                                  ? null
+                                  : () => task(DesktopAction.export, day: day),
+                              icon: const Icon(Icons.download_outlined),
+                              label: Text(DesktopAction.export.label),
+                            ),
                           ),
                           if (page != exercisePageIndex)
                             OutlinedButton.icon(

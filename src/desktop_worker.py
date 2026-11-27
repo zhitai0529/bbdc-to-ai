@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from concurrent.futures import Future
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 import json
 import os
 from pathlib import Path
@@ -82,7 +82,8 @@ def python_command() -> tuple[str, dict[str, str]]:
 
 
 class ExportJob:
-    def __init__(self, *, sync: bool, setup: bool = False, manager: Path | None = None) -> None:
+    def __init__(self, *, sync: bool, setup: bool = False, manager: Path | None = None,
+                 day: date | None = None) -> None:
         self.sync = sync
         self.setup = setup
         self.cancellation: Future[ExportJobResult] | None = None
@@ -102,6 +103,8 @@ class ExportJob:
                 self.output = TemporaryFile(dir=self.scratch.name)
             if sync:
                 command.extend(('--sync-mumu', '--latest'))
+            elif not setup and day is not None:
+                command.extend(('--date', day.isoformat()))
             if sync or setup:
                 command.extend(('--scratch-dir', self.scratch.name))
                 if manager is not None:

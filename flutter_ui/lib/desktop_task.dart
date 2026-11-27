@@ -3,7 +3,7 @@ import 'bridge.dart';
 enum DesktopAction {
   setup('一键配置 MuMu', '正在配置 MuMu…'),
   sync('同步 MuMu', '正在同步 MuMu 学习记录…'),
-  export('导出今日复习', '正在用本机记录导出今日复习…');
+  export('导出复习', '正在用本机记录导出复习…');
 
   const DesktopAction(this.label, this.progress);
   final String label;
@@ -64,8 +64,8 @@ class DesktopTasks {
 
   final HostCall _call;
 
-  Future<Json> start(DesktopAction action) async =>
-      await _call('start', [action.name]) as Json;
+  Future<Json> start(DesktopAction action, {String? day}) async =>
+      await _call('start', [action.name, if (day != null) day]) as Json;
   Future<bool> cancelSync() async =>
       (await _call('cancel_sync') as Json)['status'] == 'cancelling';
   Future<bool> locateMumu() async => await _call('locate_manager') == true;

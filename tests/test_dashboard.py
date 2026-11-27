@@ -13,6 +13,7 @@ from src.exporter import export_review
 from src.history import log_and_count_recent
 from src.parser import WordRecord
 from src.pipeline import process_payload
+from src.review_cache import ReviewCache
 from src.runtime import PROJECT_ROOT
 
 
@@ -75,6 +76,15 @@ class DashboardTests(unittest.TestCase):
             self.api.save_prompt(self.day.isoformat(), '# 旧复习', '# 过时编辑')
         self.assertEqual(path.read_text(encoding='utf-8'), '# 修订')
 
+    def test_cached_day_is_selectable_before_first_export(self):
+        day = self.day - timedelta(days=5)
+        self.config.state_dir.mkdir()
+        ReviewCache(self.config, day).save([WordRecord('cacheonly', level='hard')])
+        self.assertIn(day.isoformat(), self.api.initialize()['data']['dates'])
+        selected = self.api.select_day(day.isoformat())
+        self.assertEqual(selected['stats']['total'], 1)
+        self.assertIsNone(selected['prompt'])
+
     def test_older_exports_fill_dashboard_without_creating_word_history(self):
         yesterday = self.day - timedelta(days=1)
         earlier = self.day - timedelta(days=2)
@@ -131,7 +141,7 @@ class DashboardTests(unittest.TestCase):
             worker.assert_not_called()
             self.api.start('export')
             discover.assert_not_called()
-            worker.assert_called_once_with(sync=False, setup=False, manager=None)
+            worker.assert_called_once_with(sync=False, setup=False, manager=None, day=None)
             worker.return_value.sync = False
             with self.assertRaises(ValueError):
                 self.api.start('sync')
@@ -146,7 +156,7 @@ class DashboardTests(unittest.TestCase):
                 patch('src.desktop_jobs.remember_mumu_manager') as remember, patch('src.desktop_jobs.ExportJob') as worker:
             self.assertEqual(self.api.start('setup')['status'], 'choose')
             self.api.start('sync')
-            worker.assert_called_once_with(sync=True, setup=False, manager=manager)
+            worker.assert_called_once_with(sync=True, setup=False, manager=manager, day=None)
             remember.assert_called_once_with(manager)
 
     def test_only_confined_iso_date_can_be_saved(self):

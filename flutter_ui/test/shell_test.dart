@@ -40,6 +40,54 @@ Json sample(String day) => {
   'window': 7,
 };
 void main() {
+  testWidgets('Export uses the selected learning day', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const today = '2026-11-24', earlier = '2026-11-23';
+    final starts = <List<dynamic>>[];
+    final selected = <String>[];
+    Future<dynamic> host(String method, [List<dynamic> args = const []]) async {
+      switch (method) {
+        case 'initialize':
+          return {'data': sample(today)};
+        case 'select_day':
+          final day = args.single as String;
+          selected.add(day);
+          return sample(day);
+        case 'start':
+          starts.add(args);
+          return {'status': 'started'};
+        case 'poll':
+          return {
+            'status': 'exported',
+            'day': earlier,
+            'message': '$earlier 的复习已导出。',
+          };
+        default:
+          throw UnsupportedError(method);
+      }
+    }
+
+    await tester.pumpWidget(ReviewApp(call: host));
+    await tester.pumpAndSettle();
+    final dates = find.byType(DropdownButton<String>);
+    await tester.tap(dates);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(earlier).last);
+    await tester.pumpAndSettle();
+    expect(tester.widget<DropdownButton<String>>(dates).value, earlier);
+    await tester.tap(find.text('导出复习'));
+    await tester.pump();
+    expect(starts.single, ['export', earlier]);
+    expect(find.text('正在导出 $earlier 的复习…'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(selected, [earlier, earlier]);
+    expect(tester.widget<DropdownButton<String>>(dates).value, earlier);
+  });
+
   testWidgets(
     'Exercises use the selected options and keep daily review separate',
     (tester) async {
@@ -561,7 +609,7 @@ void main() {
             ];
             return {'data': today, 'export': false};
           case 'start':
-            expect(args, ['export']);
+            expect(args, ['export', '2026-11-24']);
             return {'status': 'started', 'message': ''};
           case 'poll':
             return {
@@ -587,7 +635,7 @@ void main() {
       expect(find.text('部分历史日期的统计来自已导出的 Markdown。'), findsOneWidget);
       expect(find.text('每日复习 Prompt'), findsNothing);
       expect(calls, ['initialize']);
-      await tester.tap(find.text('导出今日复习'));
+      await tester.tap(find.text('导出复习'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();

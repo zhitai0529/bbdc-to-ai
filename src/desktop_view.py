@@ -114,7 +114,7 @@ class ReviewView:
         self.open_button = self._action(sidebar, '同步 MuMu', '打开 MuMu 并同步学习记录',
                                         actions.sync, primary=True)
         self.setup_button = self._action(sidebar, '一键配置 MuMu', '开启 Root 并检查连接', actions.setup)
-        self.export_button = self._action(sidebar, '导出今日复习', '用本机已有记录生成文件', actions.export)
+        self.export_button = self._action(sidebar, '导出复习', '用本机已有记录导出当前学习日', actions.export)
         self.saved_button = self._action(sidebar, '打开导出目录', '在资源管理器查看复习文件', actions.open_folder)
 
         location = tk.Frame(sidebar, background=PANEL)

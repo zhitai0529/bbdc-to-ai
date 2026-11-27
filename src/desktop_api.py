@@ -15,6 +15,16 @@ from src.exercise import ExerciseExport, exercise_types, export_exercise as gene
 from src.mumu_diagnostics import MUMU_DOWNLOAD_URL
 
 
+def _parse_study_day(day: str) -> date:
+    try:
+        selected = date.fromisoformat(day)
+        if day == selected.isoformat():
+            return selected
+    except (TypeError, ValueError) as exc:
+        raise ValueError('请选择有效的学习日期。') from exc
+    raise ValueError('请选择有效的学习日期。')
+
+
 class DesktopAPI:
     def __init__(self, warning: str | None = None, auto_export: bool = False, latest: bool = False):
         self._jobs = DesktopJobs()
@@ -44,12 +54,7 @@ class DesktopAPI:
             save_review_level(level)
 
     def export_exercise(self, day: str, level: str, kind: str) -> ExerciseExport:
-        try:
-            selected = date.fromisoformat(day)
-            if day != selected.isoformat():
-                raise ValueError
-        except (TypeError, ValueError) as exc:
-            raise ValueError('请选择有效的学习日期。') from exc
+        selected = _parse_study_day(day)
         with self._jobs.idle():
             return generate_exercise(load_config(), selected, level, kind)
 
@@ -83,8 +88,8 @@ class DesktopAPI:
         if not webbrowser.open(MUMU_DOWNLOAD_URL):
             raise OSError(f'无法打开浏览器。请手动访问 {MUMU_DOWNLOAD_URL}。')
 
-    def start(self, action: str) -> dict:
-        return self._jobs.start(action)
+    def start(self, action: str, day: str | None = None) -> dict:
+        return self._jobs.start(action, day=_parse_study_day(day) if day is not None else None)
 
     def poll(self) -> dict:
         return self._jobs.poll()

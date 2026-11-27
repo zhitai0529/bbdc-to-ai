@@ -1,6 +1,7 @@
 """保存和加载每日词表。缓存保留提级前的记录。"""
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import date
 import hashlib
 import json
@@ -10,6 +11,16 @@ from src.bbdc_schema import classify_bbdc
 from src.config import Config
 from src.parser import WordRecord, merge_word
 from src.storage import write_json
+
+
+def cached_study_days(directory: Path) -> Iterator[date]:
+    for path in directory.glob('????-??-??.json'):
+        try:
+            day = date.fromisoformat(path.stem)
+        except ValueError:
+            continue
+        if path.is_file():
+            yield day
 
 
 class ReviewCache:

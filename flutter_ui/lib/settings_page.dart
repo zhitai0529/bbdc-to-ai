@@ -59,7 +59,7 @@ class SettingsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   const Text(
-                    '新的 Prompt 会要求 AI 按所选难度造句，并注释超纲词。要更新今天的文件，点「导出今日复习」。',
+                    '难度从下次生成 Prompt 起生效。要更新已有文件，选中对应学习日，再点「导出复习」。',
                   ),
                 ],
               ),

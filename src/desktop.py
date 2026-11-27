@@ -110,7 +110,7 @@ class ReviewWindow(ReviewView):
             self.status.set('正在配置 MuMu 并检查连接，请稍候。')
         else:
             self.status.set('正在打开 MuMu 并同步学习记录，请稍候。' if sync
-                            else '正在用本机记录导出今日复习，请稍候。')
+                            else '正在用本机记录导出当前学习日的复习，请稍候。')
         self.root.after(200, self.poll)
 
     def poll(self) -> None:
@@ -148,7 +148,7 @@ class ReviewWindow(ReviewView):
                 details += f'复习词表共 {result.target_word_count} 个。'
             if result.latest_saved_at is not None:
                 details += f'App 最新记录时间 {result.latest_saved_at:%m/%d %H:%M}。'
-            self.open_review(result.output, '同步成功，复习已刷新' if result.sync else '今日复习已导出', details)
+            self.open_review(result.output, '同步成功，复习已刷新' if result.sync else '复习已导出', details)
         elif result.sync:
             message = f'{result.day} 同步后没有可导出的学习记录。请在 App 完成一组学习后再同步。'
             if result.last_day:

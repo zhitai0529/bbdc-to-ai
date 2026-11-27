@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
 from threading import RLock
 
@@ -32,10 +33,12 @@ class DesktopJobs:
                              '请右键 MuMu 的桌面快捷方式，选择「打开文件所在的位置」，再选择显示的文件夹。')
         self._manager = manager
 
-    def start(self, action: str) -> dict:
+    def start(self, action: str, *, day: date | None = None) -> dict:
         with self.idle():
             if action not in {'setup', 'sync', 'export'}:
                 raise ValueError('无法识别的操作。')
+            if day is not None and action != 'export':
+                raise ValueError('仅「导出复习」可以指定学习日期。')
             manager = None
             warning = ''
             if action != 'export':
@@ -50,7 +53,7 @@ class DesktopJobs:
                 except (OSError, ValueError):
                     warning = '已找到 MuMu，可以继续。若下次未自动找到，请重新选择安装位置。'
             try:
-                self._job = ExportJob(sync=action == 'sync', setup=action == 'setup', manager=manager)
+                self._job = ExportJob(sync=action == 'sync', setup=action == 'setup', manager=manager, day=day)
             except OSError as exc:
                 raise ValueError('无法启动后台任务。请关闭并重新打开助手后再试。') from exc
             return {'status': 'started', 'message': warning}
@@ -77,7 +80,8 @@ class DesktopJobs:
                 message += f'待复习词共 {result.target_word_count} 个。可在「复习预览」查看。'
             elif result.status == 'no_records':
                 message = (f'{result.day} 同步后暂无可导出的学习记录。请在 App 完成一组学习后再同步。' if result.sync
-                           else f'本机还没有 {result.day} 的学习记录，请先点击「同步 MuMu」。')
+                           else f'本机没有 {result.day} 的逐词记录，无法重新导出。已有文件仍可在「复习预览」查看和复制。'
+                                '若这天的记录尚未同步，可先点「同步 MuMu」，再选回该日期。')
                 if result.last_day:
                     message += f'最近的学习日为 {result.last_day}。'
             elif result.status == 'mumu_missing':

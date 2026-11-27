@@ -10,18 +10,7 @@ from pathlib import Path
 from src.bbdc_schema import study_date
 from src.config import load_config
 from src.pipeline import export_cached_day, show_success
-
-
-def last_cached_day(directory: Path, before: date) -> date | None:
-    latest = None
-    for path in directory.glob('????-??-??.json'):
-        try:
-            day = date.fromisoformat(path.stem)
-        except ValueError:
-            continue
-        if day < before and (latest is None or day > latest) and path.is_file():
-            latest = day
-    return latest
+from src.review_cache import cached_study_days
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -35,7 +24,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         day = args.date or study_date(datetime.now(config.timezone))
         result = export_cached_day(config, day)
         if result.output is None:
-            latest = last_cached_day(config.state_dir, day)
+            latest = max((cached for cached in cached_study_days(config.state_dir) if cached < day), default=None)
             if args.json:
                 print(json.dumps({'status': 'no_records', 'day': day.isoformat(),
                                   'last_day': latest.isoformat() if latest else None}, ensure_ascii=False))

@@ -15,7 +15,7 @@ from src.export_summary import read_export_summary
 from src.history import count_prior_days
 from src.parser import WordRecord, collect_unknown_codes
 from src.pipeline import escalate
-from src.review_cache import ReviewCache
+from src.review_cache import ReviewCache, cached_study_days
 from src.version import VERSION
 
 
@@ -60,6 +60,7 @@ def _snapshot(config: Config, selection: str | None, *, use_history: bool) -> di
     today = study_date(datetime.now(config.timezone))
     day = date.fromisoformat(selection) if selection else today
     dates = {today.isoformat(), day.isoformat()}
+    dates.update(cached.isoformat() for cached in cached_study_days(config.state_dir))
     exports: dict[date, Path] = {}
     for path in config.output_dir.glob('????-??-??_bbdc_review.md'):
         try:
